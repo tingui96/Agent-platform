@@ -23,6 +23,9 @@ class Node:
         self.succ = (ip, port)
         self.succID = self.id
         self.fingerTable = OrderedDict()
+        self.servicio = None
+
+    def escuchar(self):
         try:
             self.ServerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.ServerSocket.bind((IP, PORT))
@@ -33,24 +36,53 @@ class Node:
     def Cliente(self):
         self.menu()
         userChoice = input()
+        if userChoice == '0':
+            self.servicio = input("Que servicio desea brindar:")
+            self.id = self.predID = self.succID = getHash(f'{self.servicio}')%1000 * 1000 + getHash('f{ip}:{port}')
+            self.escuchar()
+            self.start()
+        elif userChoice == '1':
+            self.servicio = input("Que servicio desea buscar")
+            
+       # elif userChoice == '3':
+       #     self.printFingerTable()
+       # elif userChoice == '4':
+       #     print(f'My ID: {self.id}')
+       #     print(f'Predecessor: {self.predID}')
+       #     print(f'Successor: {self.succID}')
+    
+    def BrindarServicio(self,ip, port, servicio):
+        try:
+            self.id = getHash(f'{servicio}')%1000 * 1000 + getHash('f{ip}:{port}') 
+            recvAddress = self.getSuccessor((ip, port), self.id)
+            #print("mi sucesor es "+ str(recvAddress[1]))
+            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peerSocket.connect(recvAddress)
+
+        except:
+            pass
+        
+    def agente(self):
+        print("1- Connect to the network\n3- Print Finger Table\n4- Node Information")    
+        userChoice = input()
         if userChoice == '1':
             ip = input('Enter IP to connect: ')
             port = input('Enter port: ')
-            self.sendJoinRequest(ip, int(port))
+            self.sendJoinRequest(ip, int(port),self.servicio)
         elif userChoice == '3':
             self.printFingerTable()
         elif userChoice == '4':
             print(f'My ID: {self.id}')
             print(f'Predecessor: {self.predID}')
             print(f'Successor: {self.succID}')
-    
+
     def printFingerTable(self):
         print('Printing Finger Table')
         for key, value in self.fingerTable.items(): 
             print(f'KeyID: {key}, Value: {value}')
 
     def menu(self):        
-        print("1- Connect to the network\n3- Print Finger Table\n4- Node Information")     
+        print("0-Brindar Servicio\n1-Buscar Servicio")  
     
     def start(self):
         '''
@@ -61,7 +93,7 @@ class Node:
         # In case of connecting to other clients
         while True:
             print('Listening to other clients')
-            self.Cliente()
+            self.agente()
 
     def listenThread(self):
         '''
@@ -105,7 +137,7 @@ class Node:
         else:
             print('Problem with connection type')
 
-    def sendJoinRequest(self, ip, port):
+    def sendJoinRequest(self, ip, port,servicio):
         try:
             recvAddress = self.getSuccessor((ip, port), self.id)
             #print("mi sucesor es "+ str(recvAddress[1]))
@@ -113,7 +145,7 @@ class Node:
             peerSocket.connect(recvAddress)
             #print("me conecto a mi sucesor")
             # 0 para que sepa que me quiero unir y le mando mi ip,puerto
-            datos = [0, self.address]
+            datos = [0, self.address,servicio]
             peerSocket.sendall(pickle.dumps(datos))
             #print("le envio mi direccion que es "+str(self.address[1]))
             #recibo en datos quien es mi antecesor
@@ -144,7 +176,8 @@ class Node:
         if datos:
             #recibo la direccion del nodo
             peerAddr = datos[1]
-            peerID = getHash(f'{peerAddr[0]}:{str(peerAddr[1])}')
+            peerServ = datos[2]
+            peerID = getHash(f'{peerServ}')*1000+getHash(f'{peerAddr[0]}:{str(peerAddr[1])}')
             #print("llego "+str(peerID))
             
             oldPred= self.pred
@@ -244,7 +277,10 @@ class Node:
                 value = self.succ
                 datos = [1, value]
         connection.sendall(pickle.dumps(datos))
-   
+
+    def buscarServicio(self):
+        pass
+
     def pingSucc(self):
         while True:
             # Ping every 5 seconds
@@ -309,4 +345,4 @@ if __name__ == '__main__':
 
     node = Node(IP, PORT)
     print(f'My ID is: {node.id}')
-    node.start()
+    node.Cliente()
