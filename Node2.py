@@ -191,12 +191,12 @@ class Node:
                 peerSocket.connect(recvAddress[0])
                 #Buscar id
                 datos = [3, keyID]
-                print(datos)
                 peerSocket.sendall(pickle.dumps(datos))
                 datos = pickle.loads(peerSocket.recv(BUFFER))
                 recvAddress = [datos[1],datos[2]]
                 peerSocket.close()
             except socket.error:
+                print(address)
                 print('Connection denied while getting Successor')
         return recvAddress
 
@@ -250,8 +250,6 @@ class Node:
         elif self.id > keyID:
             if self.predID < keyID:
                 datos = [0, self.address, self.id]
-                print(self.predID)
-                print(keyID)
             elif self.predID > self.id:
                 datos = [0, self.address, self.id]
             else:
@@ -259,8 +257,7 @@ class Node:
         # Case 3: si mi id es menor que el keyID, usar la fingertable para buscar al mas cercano
         else:
             if self.id > self.succID:
-                datos = [0, self.succ, self.id]
-                print("entre5")
+                datos = [0, self.succ, self.succID]
             else:
                 value = ()
                 for key, value in self.fingerTable.items():
@@ -294,8 +291,9 @@ class Node:
                 
                 if not self.succ == self.pred:
                     # Search for the next succ
-                    self.succ = self.succesorDelSuccesor
-                    self.succID = getHash(f'{self.succ[0]}:{str(self.succ[1])}')
+                    recvAddr = self.getSuccessor(self.pred, self.succID+1)
+                    self.succ = recvAddr[0]
+                    self.succID = recvAddr[1]
 
                     # Informa al nuevo sucesor para que actualice su predecesor conmigo
                     pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -303,18 +301,18 @@ class Node:
                     pSocket.sendall(pickle.dumps([4, 0, self.address, self.id]))
                     pSocket.close()
 
-                    #entra al antecesor para que actualice el sucesor de su sucesor
-                    pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    pSocket2.connect(self.pred)
-                    pSocket2.sendall(pickle.dumps([7,1,self.succ]))
-                    pSocket2.close()
-                    time.sleep(0.1)
+                    # #entra al antecesor para que actualice el sucesor de su sucesor
+                    # pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    # pSocket2.connect(self.pred)
+                    # pSocket2.sendall(pickle.dumps([7,1,self.succ]))
+                    # pSocket2.close()
+                    # time.sleep(0.1)
 
-                    #entra a mi sucesor para que actualice el sucesor de su sucesor
-                    pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    pSocket2.connect(self.succ)
-                    pSocket2.sendall(pickle.dumps([8]))
-                    pSocket2.close()
+                    # #entra a mi sucesor para que actualice el sucesor de su sucesor
+                    # pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    # pSocket2.connect(self.succ)
+                    # pSocket2.sendall(pickle.dumps([8]))
+                    # pSocket2.close()
 
                 else:
                     self.pred = self.address
