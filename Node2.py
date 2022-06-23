@@ -184,6 +184,7 @@ class Node:
             connection.sendall(pickle.dumps(datos))
             time.sleep(0.1)
             self.updateFingerTable()
+            self.printFingerTable()
             self.updateOtherFingerTables()       
             
     def getSuccessor(self, address, keyID):
@@ -211,11 +212,15 @@ class Node:
     def updateFingerTable(self):
         for i in range(MAX_BITS):
             entryId = (self.id + (2 ** i)) % MAX_NODES
+            print("@@@@@@@@@@@  {}  @@@@@@@@@@@".format((entryId, self.succID, self.predID)))
             if self.succ == self.address:
                 self.fingerTable[entryId] = (self.id, self.address)
                 continue
             recvAddr = self.getSuccessor(self.succ, entryId)
+            print("@@@@@@@@@@@  {}  @@@@@@@@@@@".format(recvAddr))
             self.fingerTable[entryId] = (recvAddr[1], recvAddr[0])
+        self.printFingerTable()
+
 
     def updateOtherFingerTables(self):
         here = self.succ
@@ -233,6 +238,7 @@ class Node:
                     break
             except socket.error:
                 print('Connection denied')
+        
 
     def updateSucc(self, datos):
         self.succ = datos[2]
@@ -242,11 +248,30 @@ class Node:
         self.pred = datos[2]
         self.predID = datos[3]
 
-    def SearchID(self, connection, address, datos):
-        
+    def SearchID2(self, connection, address, datos):
         keyID = datos[1]
         datos = []
+        id = self.id + 1000000 if (id < self.predID) else self.id
+        succID = self.succID + 1000000 if (id > self.succID) else self.succID
+        # [y,x,z]
 
+
+        if self.id == keyID: # w = x
+            print("entre1")
+            time.sleep(0.2)
+            datos = [0, self.address, self.id]
+        # Caso 1: si nada mas existe 1 nodo
+        elif self.succID == self.id: #[x,w,x]
+            print("entre2")
+            time.sleep(0.2)
+            datos = [0, self.address, self.id]
+
+
+    def SearchID(self, connection, address, datos):
+        time.sleep(0.2)
+        keyID = datos[1]
+        datos = []
+        print((self.id, keyID))
         # Caso 0: si soy yo
         # x = yo
         # y = pred
@@ -277,19 +302,37 @@ class Node:
             else:   #[...,w,...,y,x,...]
                 print("entre5")
                 time.sleep(0.2)
-                datos = [1, self.pred, self.predID]
+                #datos = [1, self.pred, self.predID]
+                datos = [1, self.succ, self.succID]
+                for key, value in self.fingerTable.items():
+                    if key < self.id and key > keyID:
+                        datos = [1, value[1], value[0]]
+                        break
         # Case 3: si mi id es menor que el keyID, usar la fingertable para buscar al mas cercano
         else: #[...x...w...]
-            if self.id > self.succID or self.succID > keyID: #[z,...,y,x,w] or [...y,x,w,z...]
+            if self.succID < self.id or keyID < self.succID: #[z,...,y,x,w] or [...y,x,w,z...]
                 print("entre6")
                 time.sleep(0.2)
-
                 datos = [0, self.succ, self.succID]
             else: #[...x,z...w...]
-                if self.predID < keyID: #[x,z,...,y,w]
+                if self.predID < keyID and self.predID > self.id : #[x,z,...,y,w]
+                    time.sleep(0.2)
                     datos = [0, self.address, self.id]
-                else: #[x,z,...,w,y]
-                    datos = [1, self.pred , self.predID]
+                elif self.succID < self.predID and self.predID < keyID: #[x,z,...,y,w]
+                    datos = [0, self.address, self.id]
+                else:
+                      #[x,z,...,w,...,y]
+                      #[...,y,x,z,...,w,...]
+                      # en estos casos mi sucesor nunca es sucesor del nodo nuevo
+                    time.sleep(0.2)
+                    print("********entre7********{}".format((keyID, self.succID)))
+                    self.printFingerTable()
+                    datos = [1, self.succ, self.succID]
+                    for key, value in self.fingerTable.items():
+                        if key > keyID and value[0] > self.succID:
+                            print((value[1]))
+                            datos = [1, value[1], value[0]]
+                            break
         connection.sendall(pickle.dumps(datos))
 
     def buscarServicio(self):
