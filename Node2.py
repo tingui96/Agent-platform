@@ -66,6 +66,10 @@ class Node:
             print(f'My ID: {self.id}')
             print(f'Predecessor: {self.pred , self.predID}')
             print(f'Successor: {self.succ, self.succID}')
+        elif userChoice == '5':
+            self.sendJoinRequest("127.0.0.1",8000)
+        elif userChoice == '6':
+            self.sendJoinRequest("127.0.0.1",8080)
 
     def printFingerTable(self):
         print('Printing Finger Table')
@@ -191,13 +195,17 @@ class Node:
                 peerSocket.connect(recvAddress[0])
                 #Buscar id
                 datos = [3, keyID]
+                print("*****{}*****".format(datos))
                 peerSocket.sendall(pickle.dumps(datos))
                 datos = pickle.loads(peerSocket.recv(BUFFER))
+                print("--------{}-------".format(datos))
                 recvAddress = [datos[1],datos[2]]
                 peerSocket.close()
             except socket.error:
+                print(recvAddress)
                 print(address)
                 print('Connection denied while getting Successor')
+                exit()
         return recvAddress
 
     def updateFingerTable(self):
@@ -207,8 +215,7 @@ class Node:
                 self.fingerTable[entryId] = (self.id, self.address)
                 continue
             recvAddr = self.getSuccessor(self.succ, entryId)
-            recvId = getHash(f'{recvAddr[0]}:{str(recvAddr[1])}')
-            self.fingerTable[entryId] = (recvId, recvAddr[0])
+            self.fingerTable[entryId] = (recvAddr[1], recvAddr[0])
 
     def updateOtherFingerTables(self):
         here = self.succ
@@ -241,30 +248,48 @@ class Node:
         datos = []
 
         # Caso 0: si soy yo
-        if self.id == keyID:
+        # x = yo
+        # y = pred
+        # z = succ
+        # w = keyID
+        # a...b = pueden existir n nodos entre a y b
+        # a,b = a y b son consecutivos 
+        
+        if self.id == keyID: # w = x
+            print("entre1")
+            time.sleep(0.2)
             datos = [0, self.address, self.id]
         # Caso 1: si nada mas existe 1 nodo
-        elif self.succID == self.id:
+        elif self.succID == self.id: #[x,w,x]
+            print("entre2")
+            time.sleep(0.2)
             datos = [0, self.address, self.id]
         # Caso 2: si mi id es mayor que el keyID, preguntar al antecesor
-        elif self.id > keyID:
-            if self.predID < keyID:
+        elif self.id > keyID: #[...w...x...]
+            if self.predID < keyID: #[...,y,w,x,...]
+                print("entre3")
+                time.sleep(0.2)
                 datos = [0, self.address, self.id]
-            elif self.predID > self.id:
+            elif self.predID > self.id: #[w,x,...,y]
+                print("entre4")
+                time.sleep(0.2)
                 datos = [0, self.address, self.id]
-            else:
-                datos = [1, self.pred, self.id]
+            else:   #[...,w,...,y,x,...]
+                print("entre5")
+                time.sleep(0.2)
+                datos = [1, self.pred, self.predID]
         # Case 3: si mi id es menor que el keyID, usar la fingertable para buscar al mas cercano
-        else:
-            if self.id > self.succID:
+        else: #[...x...w...]
+            if self.id > self.succID or self.succID > keyID: #[z,...,y,x,w] or [...y,x,w,z...]
+                print("entre6")
+                time.sleep(0.2)
+
                 datos = [0, self.succ, self.succID]
-            else:
-                value = ()
-                for key, value in self.fingerTable.items():
-                    if key >= keyID:
-                        break
-                value = self.succ
-                datos = [1, value, self.id]
+            else: #[...x,z...w...]
+                if self.predID < keyID: #[x,z,...,y,w]
+                    datos = [0, self.address, self.id]
+                else: #[x,z,...,w,y]
+                    datos = [1, self.pred , self.predID]
         connection.sendall(pickle.dumps(datos))
 
     def buscarServicio(self):
@@ -291,6 +316,7 @@ class Node:
                 
                 if not self.succ == self.pred:
                     # Search for the next succ
+                    print("$$$$$$$$$${}$$$$$$$$$$$".format((self.pred, self.succID)))
                     recvAddr = self.getSuccessor(self.pred, self.succID+1)
                     self.succ = recvAddr[0]
                     self.succID = recvAddr[1]
@@ -301,20 +327,8 @@ class Node:
                     pSocket.sendall(pickle.dumps([4, 0, self.address, self.id]))
                     pSocket.close()
 
-                    # #entra al antecesor para que actualice el sucesor de su sucesor
-                    # pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    # pSocket2.connect(self.pred)
-                    # pSocket2.sendall(pickle.dumps([7,1,self.succ]))
-                    # pSocket2.close()
-                    # time.sleep(0.1)
-
-                    # #entra a mi sucesor para que actualice el sucesor de su sucesor
-                    # pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    # pSocket2.connect(self.succ)
-                    # pSocket2.sendall(pickle.dumps([8]))
-                    # pSocket2.close()
-
                 else:
+                    #creo que esto sobra ahora
                     self.pred = self.address
                     self.predID = self.id
                     self.succ = self.address
