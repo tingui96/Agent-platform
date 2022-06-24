@@ -1,9 +1,11 @@
 
 class Agent():
-    def __init__(self, data):
-        self.ip,self.port = data.address
-        self.id = data.id
-        self.name = data.name
-        self.service = data.service
-        self.password = data.password
-        self.description = data.description
+    def __init__(self, address, id, servicio): #data
+        self.address = address
+        self.id = id
+        self.service = servicio
+        #self.password = data.password
+        #self.description = data.description
+    
+    def Execute(self):
+        print("El agente se ejecuta")

@@ -8,11 +8,12 @@ import random
 import hashlib
 import threading
 
+from Agent import *
+
 from tools import *
 from collections import OrderedDict
 
 class Node:
-
     def __init__(self, ip, port):
         self.ip = ip
         self.port = port
@@ -24,6 +25,9 @@ class Node:
         self.succID = self.id
         self.fingerTable = OrderedDict()
         self.servicio = None
+        self.agent = []
+
+
 
     def escuchar(self):
         try:
@@ -37,14 +41,26 @@ class Node:
         self.menu()
         userChoice = input()
         if userChoice == '0':
-            self.servicio = input("Que servicio desea brindar:")
-            self.id = self.predID = self.succID = getHash(f'{self.servicio}')%1000 * 1000 + (getHash(f'{self.ip}:{str(self.port)}'))
-            self.updateFingerTable()
-            self.escuchar()
-            self.start()
+            self.servicio = input("Que servicio desea brindar?")
+            self.AddAgent()
         elif userChoice == '1':
-            self.servicio = input("Que servicio desea buscar")
+            search = input("Que servicio le interesa?")
+            servHash = getHash(f'{search}')%1000*1000
+
+
             
+
+
+    
+    def AddAgent(self):
+        self.id = self.predID = self.succID = getHash(f'{self.servicio}')%1000 * 1000 + (getHash(f'{self.ip}:{str(self.port)}'))
+        self.agent = Agent(self.address, self.id, self.servicio)
+        self.updateFingerTable()
+        self.escuchar()
+        self.start()
+
+
+
        # elif userChoice == '3':
        #     self.printFingerTable()
        # elif userChoice == '4':
@@ -70,6 +86,9 @@ class Node:
             self.sendJoinRequest("127.0.0.1",8000)
         elif userChoice == '6':
             self.sendJoinRequest("127.0.0.1",8080)
+        elif userChoice == '7':
+            self.agent.Execute()
+
 
     def printFingerTable(self):
         print('Printing Finger Table')
@@ -131,7 +150,6 @@ class Node:
             self.updateFingerTable()
             connection.sendall(pickle.dumps(self.succ))   
         elif connectionType == 6:
-            print("********??????????**********{}".format(datos))
             self.sendJoinRequest(datos[1][0], datos[1][1])
         else:
             print('Problem with connection type')

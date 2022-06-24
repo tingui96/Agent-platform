@@ -1,0 +1,10 @@
+creo que es mejor hacerlo que cada worker pueda pertenecer a un solo agente, 
+si lo hacemos multiagente entonces tendriamos que llevar una lista ?????? en
+cada computadora, y los predecesores y sucesores en cada agente, no en el nodo.
+
+el problema con el cliente externo al programa es que si se desconecta el nodo
+al que esta conectado entonces el se desconecta tambien, a menos que le vayamos
+llevando en una lista ?????? todos los nodos con los que se ha conectado. Otra
+forma seria guardarlo en el chord con servicio cliente (000XXX) automaticamente
+y luego si cambia de servicio se actualiza. Esto tambien nos dejaria despues
+permitir a los usuarios cambiar el agente al que pertenecen.
