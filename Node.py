@@ -227,6 +227,7 @@ class Node:
             peerSocket.connect(n[0])
             datos = ["Sucesor"]
             peerSocket.sendall(pickle.dumps(datos))
+            #(direccion, id del sucesor)
             n = pickle.loads(peerSocket.recv(BUFFER))
             peerSocket.close()
         except socket.error:
@@ -237,10 +238,10 @@ class Node:
         for i in range(MAX_BITS):
             entryId = (self.id + (2 ** i)) % MAX_NODES
             if self.succ == self.address:
-                self.fingerTable[entryId] = (self.id, self.address)
+                self.fingerTable[entryId] = (self.address,self.id)
                 continue
             recvAddr = self.getSuccessor(entryId)
-            self.fingerTable[entryId] = (recvAddr[1], recvAddr[0])
+            self.fingerTable[entryId] = (recvAddr[0], recvAddr[1])
 
     def updateOtherFingerTables(self,id):
         for i in range(1,21):
@@ -249,7 +250,6 @@ class Node:
             peerSocket.connect(p[0])
             peerSocket.sendall(pickle.dumps([5]))
             peerSocket.close()
-
  
     def getPredecessor(self,id):
         address = [self.address, self.id] 
