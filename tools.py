@@ -5,7 +5,7 @@ IP = '127.0.0.1'
 PORT = 8080
 BUFFER = 4096
 MAX_BITS = 20
-MAX_NODES = 2 ** MAX_BITS
+MAX_NODES = 2**MAX_BITS
 
 def getHash(key):
     '''
@@ -14,3 +14,6 @@ def getHash(key):
     '''
     result = hashlib.sha1(key.encode())
     return int(result.hexdigest(), 16) % 1000
+
+def getHashId(address,servicio):
+    return getHash(f'{servicio}')%1000*1000+getHash(f'{address[0]}:{str(address[1])}')
