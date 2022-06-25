@@ -8,3 +8,9 @@ llevando en una lista ?????? todos los nodos con los que se ha conectado. Otra
 forma seria guardarlo en el chord con servicio cliente (000XXX) automaticamente
 y luego si cambia de servicio se actualiza. Esto tambien nos dejaria despues
 permitir a los "workers" cambiar el agente al que pertenecen.
+
+ft esta dando problemas cuando se desconecta el sucesor de un nodo que nada mas
+tiene su sucesor en la ft
+solucion 1: agregar el succ+1 a la ft luego de 2^n (tecnicamente sucesor de mi sucesor
+jajajajajaa)
+solucion 2: tiza que se me acaba de ocurrir, escucha pa esto, nodos VIRTUALES

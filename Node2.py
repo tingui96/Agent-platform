@@ -1,4 +1,5 @@
 from genericpath import exists
+from logging import exception
 import os
 import sys
 import time
@@ -44,8 +45,7 @@ class Node:
             self.servicio = input("Que servicio desea brindar?")
             self.AddAgent()
         elif userChoice == '1':
-            search = input("Que servicio le interesa?")
-            servHash = getHash(f'{search}')%1000*1000
+            pass
 
 
             
@@ -76,6 +76,8 @@ class Node:
             ip = input('Enter IP to connect: ')
             port = input('Enter port: ')
             self.sendJoinRequest(ip, int(port))
+        elif userChoice == '2':
+            self.buscarServicio()
         elif userChoice == '3':
             self.printFingerTable()
         elif userChoice == '4':
@@ -151,6 +153,9 @@ class Node:
             connection.sendall(pickle.dumps(self.succ))   
         elif connectionType == 6:
             self.sendJoinRequest(datos[1][0], datos[1][1])
+        elif connectionType == 7:
+            result = self.agent.Execute()
+            connection.sendall(pickle.dumps(result))
         else:
             print('Problem with connection type')
 
@@ -232,7 +237,7 @@ class Node:
                 peerSocket.connect(recvAddress[0])
                 #Buscar id
                 datos = [3, keyID]
-                print("*****{}*****".format(datos))
+                print("*****{}*****".format((datos, recvAddress[0])))
                 peerSocket.sendall(pickle.dumps(datos))
                 datos = pickle.loads(peerSocket.recv(BUFFER))
                 print("--------{}-------".format(datos))
@@ -241,8 +246,8 @@ class Node:
             except socket.error:
                 print(recvAddress)
                 print(address)
-                print('Connection denied while getting Successor')
-                exit()
+                exception('Connection denied while getting Successor')
+                
         return recvAddress
 
     def updateFingerTable(self):
@@ -318,16 +323,22 @@ class Node:
                 print("entre4")
                 time.sleep(0.2)
                 datos = [0, self.address, self.id]
-            else:   #[...,w,...,y,x,...]
+            elif keyID < self.succID and self.succID < self.id: #[w,z,...,y,x]
+                print("entre4")
+                time.sleep(0.2)
+                datos = [0, self.succ, self.succID]
+            else:
+                #[...,w,...,y,x,z,...]
+                #[z,...,w,...,y,x]
                 print("entre5")
                 time.sleep(0.2)
-                #datos = [1, self.pred, self.predID]
-                datos = [1, self.succ, self.succID]
-                for key, value in self.fingerTable.items():
-                    if key < self.predID and key > keyID:
-                        datos = [1, value[1], value[0]]
-                        print(datos)
-                        break
+                datos = [1, self.pred, self.predID]
+                # datos = [1, self.succ, self.succID]
+                # for key, value in self.fingerTable.items():
+                #     if key < self.predID and key > keyID:
+                #         datos = [1, value[1], value[0]]
+                #         print("!!!!!!!!!!!!!!!!{}!!!!!!!!!!!!!!!!!!!!".format(datos))
+                #         break
         # Case 3: si mi id es menor que el keyID, usar la fingertable para buscar al mas cercano
         else: #[...x...w...]
             if self.succID < self.id or keyID < self.succID: #[z,...,y,x,w] or [...y,x,w,z...]
@@ -356,6 +367,15 @@ class Node:
         return datos
 
     def buscarServicio(self):
+        search = input("Que servicio le interesa?")
+        servHash = getHash(f'{search}')%1000*1000
+        recvAddress = self.getSuccessor(self.address,servHash)
+        peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peerSocket.connect(recvAddress[0])
+        datos = [7]
+        peerSocket.sendall(pickle.dumps(datos))
+        result = pickle.loads(peerSocket.recv(BUFFER))
+        print(result)
         pass
 
     def pingSucc(self):
@@ -379,7 +399,7 @@ class Node:
                 
                 if not self.succ == self.pred:
                     # Search for the next succ
-                    print("$$$$$$$$$${}$$$$$$$$$$$".format((self.pred, self.succID)))
+                    print("$$$$$$$$$${}$$$$$$$$$$$".format((self.predID, self.succID)))
                     recvAddr = self.getSuccessor(self.pred, self.succID+1)
                     self.succ = recvAddr[0]
                     self.succID = recvAddr[1]
