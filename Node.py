@@ -1,4 +1,5 @@
 from genericpath import exists
+from multiprocessing import connection
 from operator import mod
 import os
 from sqlite3 import connect
@@ -9,6 +10,8 @@ import socket
 import random
 import hashlib
 import threading
+from unittest import result
+from Agent import *
 
 from tools import *
 from collections import OrderedDict
@@ -46,6 +49,7 @@ class Node:
             self.servicio = input("Que servicio desea brindar:")
             self.id = self.predID = self.succID = getHashId((self.ip,self.port),self.servicio)
             self.succList = [(self.address, self.id)]
+            self.agent = Agent(self.address, self.id, self.servicio)
             self.escuchar()
             self.updateFingerTable()
             self.start()
@@ -65,14 +69,50 @@ class Node:
             print(f'My ID: {self.id}')
             print(f'Predecessor: {self.predID}')
             print(f'Successor: {self.succID}')
-        elif userChoice == '5':
-            print(self.succList)
         elif userChoice == '6':
             self.sendJoinRequest("127.0.0.1",8080)
         elif userChoice == '7':
             self.sendJoinRequest("127.0.0.1",8000)
-    
-    
+        elif userChoice == '5':
+            servicio = input("Servicio a buscar: ")
+            searchId = getHashId(self.address, servicio)
+            recAddress=self.getSuccessor(searchId)
+            serv = getHash(servicio)
+            print(recAddress)
+            predAddress = self.requestExecPred(recAddress[0])
+            print((recAddress[1],predAddress[1], serv))
+            if (int(recAddress[1] / 1000) != serv and int(predAddress[1] / 1000) != serv):
+                print(f"No se ha encontrado ese servicio en el servidor")
+            else: 
+                print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
+                if(int(recAddress[1] / 1000) == serv):
+                    res = self.requestExec(recAddress[0], input())
+                else:
+                    res = self.requestExec(predAddress[0], input())
+                print(res)
+
+
+    def requestExecPred(self, address):
+        datos = ["Predecesor"]
+        peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peerSocket.connect((address))
+        peerSocket.sendall(pickle.dumps(datos))
+        datos = pickle.loads(peerSocket.recv(BUFFER)) 
+        peerSocket.close()
+        print(datos)
+        return(datos)    
+
+
+    def requestExec(self, address, arg):
+        datos = ["ExecAgent", arg]
+        peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peerSocket.connect((address))
+        peerSocket.sendall(pickle.dumps(datos))
+        datos = pickle.loads(peerSocket.recv(BUFFER)) 
+        peerSocket.close()
+        return(datos)    
+
+
     
     def printFingerTable(self):
         print('Printing Finger Table')
@@ -138,8 +178,25 @@ class Node:
             self.updateFingerTable()
         elif connectionType == "Ping":
             connection.sendall(pickle.dumps(["OK"]))
-        elif connectionType == "requestSuccList":
+        elif connectionType == "RequestSuccList":
             connection.sendall(pickle.dumps(self.succList))
+        elif connectionType == "ExecAgent":
+            sendRes = self.agent.Exectute(datos[1])
+            connection.sendall(pickle.dumps(sendRes))
+        elif connectionType == "RequestAgent":
+            time.sleep(0.2)
+            print(f"Llega la petición")
+            connection.close()
+            pSocket3 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            pSocket3.connect(datos[1])
+            datos1 = ["RecibirAgente"]
+            pSocket3.sendall(pickle.dumps(datos1))
+            self.agent.SendAgent(pSocket3)
+        elif connectionType == "RecibirAgente":
+            time.sleep(0.2)
+            print("Comienza a recibir")
+            self.agent.RecibirAgente(connection)
+            print("Se recibio el agente con éxito")
         elif connectionType == 2:
             if datos[1] == 0:
                 connection.sendall(pickle.dumps(self.pred))
@@ -174,7 +231,7 @@ class Node:
             #le pido el succList
             peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peerSocket.connect((ip,port))
-            datos = ["requestSuccList"]
+            datos = ["RequestSuccList"]
             peerSocket.sendall(pickle.dumps(datos))
             recvData = pickle.loads(peerSocket.recv(BUFFER))
             peerSocket.close()
@@ -199,12 +256,32 @@ class Node:
             pSocket3.connect(self.pred)
             pSocket3.sendall(pickle.dumps(datos))
             pSocket3.close()
-            
             self.updateFingerTable()
             self.updateOtherFingerTables(self.id)
-                        
+            time.sleep(0.5)
+            print("Comienza el envio")
+            serv = getHash(self.servicio)
+            if(int(self.succID/1000) != serv and int(self.predID/1000) != serv):
+                print("Se ha creado un archivo en la carpeta Agent del proyecto, por favor llene los campos correspondientes")
+                self.CrearAgente()
+            elif (int(self.succID/1000) == serv):
+                self.RequestAgent(self.succ)
+            else:
+                self.RequestAgent(self.pred)
         except socket.error:
             print('Socket error. Recheck IP/Port.')
+
+
+    def CrearAgente(self):
+        pass
+
+    def RequestAgent(self, address):
+        print("Pide el agente")
+        pSocket3 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        pSocket3.connect(address)
+        datos = ["RequestAgent", self.address]
+        pSocket3.sendall(pickle.dumps(datos))
+
 
     def joinNode(self, connection, address, datos):
         '''
@@ -337,10 +414,9 @@ class Node:
                 #print("abri el socket")
                 pSocket.connect(self.succ)
                 #print("me conecte")
-                pSocket.sendall(pickle.dumps(["requestSuccList"]))
+                pSocket.sendall(pickle.dumps(["RequestSuccList"]))
                 #print("envie ping")
                 recvData = (pickle.loads(pSocket.recv(BUFFER)))
-                print(self.succList)
                 pSocket.close()
                 self.succList = [(self.succ, self.succID)]
                 for succ in recvData:
