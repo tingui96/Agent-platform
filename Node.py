@@ -260,7 +260,7 @@ class Node:
         print("my id {0} mi succesor{1}",self.id,self.succID)
         print("ID buscado{0}",id)
         print("{0},{1}".format(self.id, self.succID))
-        if (self.id < id and id < self.succID and self.id < self.succID) or (self.succID < self.id and (id < self.succID or id > self.id)) or self.succID == self.id:       
+        if (self.id < id and id < self.succID and self.id < self.succID) or (self.succID < self.id and (id < self.succID or id > self.id)) or self.succID == self.id or self.succID == id:       
             return address
         recvaddress = self.closest_preceding_finger(id)
         peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)                
