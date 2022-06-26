@@ -1,4 +1,3 @@
-from fileinput import close
 from genericpath import exists
 from operator import mod
 import os
@@ -27,6 +26,8 @@ class Node:
         self.succID = self.id
         self.fingerTable = OrderedDict()
         self.servicio = None
+        self.succList = [(self.address,self.id)]
+        self.server = self.address
 
     def escuchar(self):
         try:
@@ -45,11 +46,16 @@ class Node:
         if userChoice == '0':
             self.servicio = input("Que servicio desea brindar:")
             self.id = self.predID = self.succID = getHashId((self.ip,self.port),self.servicio)
+            self.succList = [(self.address, self.id)]
             self.escuchar()
             self.updateFingerTable()
             self.start()
         elif userChoice == '1':
             self.servicio = input("Que servicio desea buscar")
+            keyId = getHashId((self.ip,self.port),self.servicio)
+            self.succList = []
+            self.MenuServicio()
+
         
     def agente(self):
         print("1- Connect to the network\n3- Print Finger Table\n4- Node Information")    
@@ -64,20 +70,24 @@ class Node:
             print(f'My ID: {self.id}')
             print(f'Predecessor: {self.predID}')
             print(f'Successor: {self.succID}')
-
+        elif userChoice == '5':
+            print(self.succList)
+        elif userChoice == '6':
+            self.sendJoinRequest("127.0.0.1",8080)
+        elif userChoice == '7':
+            self.sendJoinRequest("127.0.0.1",8000)
+     
     def printFingerTable(self):
         print('Printing Finger Table')
         for key, value in self.fingerTable.items(): 
             print(f'KeyID: {key}, Value: {value}')
-
-    
     
     def start(self):
         '''
         Accepting connections from other threads.
         '''
         threading.Thread(target=self.listenThread, args=()).start()
-        #threading.Thread(target=self.pingSucc, args=()).start()
+        threading.Thread(target=self.pingSucc, args=()).start()
         # In case of connecting to other clients
         while True:
             print('Listening to other clients')
@@ -116,8 +126,7 @@ class Node:
             datos = self.myPred()
             connection.sendall(pickle.dumps(datos))
         elif connectionType == "GetPredecesor":
-            recvAddr = self.closest_preceding_finger(datos[1])
-            #self.printFingerTable()
+            recvAddr = self.getPredecessor(datos[1])
             connection.sendall(pickle.dumps(recvAddr))
         elif connectionType == "ActualizaPredecesor":
             connection.sendall(pickle.dumps([self.pred,self.predID]))
@@ -130,21 +139,26 @@ class Node:
             self.updateFingerTable()
         elif connectionType == "Ping":
             connection.sendall(pickle.dumps(["OK"]))
-
-        #elif connectionType == 2:
-        #    if datos[1] == 0:
-        #        connection.sendall(pickle.dumps(self.pred))
-        #    else:
-        #        connection.sendall(pickle.dumps([2,1,self.succ]))
-        #elif connectionType == 3:
-        #    self.SearchID(connection, address, datos)
-        #elif connectionType == 4:
-        #    if datos[1] == 1:
-        #        self.updateSucc(datos)
-        #    else:
-        #        self.updatePred(datos)
+        elif connectionType == "requestSuccList":
+            connection.sendall(pickle.dumps(self.succList))
+        elif connectionType == 2:
+            if datos[1] == 0:
+                connection.sendall(pickle.dumps(self.pred))
+            else:
+                connection.sendall(pickle.dumps([2,1,self.succ]))
+        elif connectionType == 3:
+            self.SearchID(connection, address, datos)
+        elif connectionType == 4:
+            if datos[1] == 1:
+                self.updateSucc(datos)
+            else:
+                self.updatePred(datos)
         elif connectionType == 5:
             self.updateFingerTable()  
+        elif connectionType == "Buscar":
+            recvAddr = self.getPredecessor(datos[1])
+            connection.sendall(pickle.dumps(recvAddr))            
+            pass
         else:
             print('Problem with connection type')
 
@@ -158,10 +172,22 @@ class Node:
             peerSocket.sendall(pickle.dumps(datos))
             #recibo en datos quien es mi sucesor
             datos = pickle.loads(peerSocket.recv(BUFFER)) 
-            peerSocket.close()                      
-            self.succ = datos[0]
-            self.succID = datos[1]            
+            peerSocket.close()
             #actualizo mi sucesor
+            self.succ = datos[0]
+            self.succID = datos[1]
+            #le pido el succList
+            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peerSocket.connect((ip,port))
+            datos = ["requestSuccList"]
+            peerSocket.sendall(pickle.dumps(datos))
+            recvData = pickle.loads(peerSocket.recv(BUFFER))
+            peerSocket.close()
+            self.succList = [(self.succ, self.succID)]
+            for succ in recvData:
+                if not (succ in self.succList):
+                    self.succList.append(succ)
+                    if len(self.succList) == 20: break
             datos = ["ActualizaPredecesor",self.id,self.address]
             pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #me conecto al mi sucesor y le digo que se actualice conmigo
@@ -178,9 +204,8 @@ class Node:
             pSocket3.connect(self.pred)
             pSocket3.sendall(pickle.dumps(datos))
             pSocket3.close()
-            time.sleep(0.1)
+            
             self.updateFingerTable()
-            self.printFingerTable()
             self.updateOtherFingerTables(self.id)
                         
         except socket.error:
@@ -199,7 +224,7 @@ class Node:
             peerID = getHashId(peerAddr,peerServ)
             #print("llego "+str(peerID))
             recvAddr = self.getSuccessor(peerID)
-            print("join {0}",recvAddr)
+            #print("join {0}",recvAddr)
             #le mando a su sucesor para que se conecte
             connection.sendall(pickle.dumps(recvAddr))             
             
@@ -237,222 +262,29 @@ class Node:
  
     def getPredecessor(self,id):
         address = [self.address, self.id] 
-        #caso base para 1 nodo
-        
-        if self.succID == self.id:
-            address = [self.address,self.id]
-        #caso base para 2 nodos
-        elif self.succID == self.predID:
-            if self.id > self.succID:
-                if self.succID < id and id < self.id:
-                    address = [self.succ,self.succID]
-                else:
-                    address = [self.address,self.id]
-            else:
-                if self.id<id and id<self.succID:
-                    address = [self.address,self.id]
-                else:
-                    address = [self.succ,self.succID]
-        #mas de 2
-        else: 
-            if id == self.id:
-                address = [self.pred, self.predID]
-            elif self.id < id and id < self.succID :
-                address = [self.address,self.id]
-            #address = self.closest_preceding_finger(id)        
-            elif self.id > self.succID and id < self.succID :
-                address = [self.address,self.id]
-            elif self.id > self.succID and id > self.id:
-                address = [self.address, self.id]
-            elif self.id > self.succID and id >self.succID:
-                tempaddr = self.address
-                tempid = self.id
-                peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                peerSocket.connect(self.succ)
-                peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))
-                address = pickle.loads(peerSocket.recv(BUFFER))
-                peerSocket.close()
-                peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                peerSocket.connect(address[0])
-                peerSocket.sendall(pickle.dumps(["Sucesor"]))
-                succesor = pickle.loads(peerSocket.recv(BUFFER))
-                peerSocket.close()
-                while (address[1]<id and id > succesor[1]):
-                    address = self.closest_preceding_finger(id)
-                    if tempid == address[1]:
-                        return [tempaddr,tempid]
-                    tempid = address[1]
-                    tempaddr = address[0]
-                    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    peerSocket.connect(address[0])
-                    peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))
-                    address = pickle.loads(peerSocket.recv(BUFFER))
-                    peerSocket.close()
-                    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    peerSocket.connect(address[0])
-                    peerSocket.sendall(pickle.dumps(["Sucesor"]))
-                    succesor = pickle.loads(peerSocket.recv(BUFFER))
-                    peerSocket.close()
-                    print("1",address[1], succesor[1], id)
-                    if address[1]<id and id < succesor[1]:
-                        return address
-                    #elif address[1]
-            elif self.id < self.succID and id<self.id:
-                tempaddr = self.address
-                tempid = self.id
-                address = self.mas_pequeno_menor()                
-                peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                peerSocket.connect(address[0])
-                peerSocket.sendall(pickle.dumps(["Sucesor"]))
-                succesor = pickle.loads(peerSocket.recv(BUFFER))
-                peerSocket.close()
-                while (address[1]<id and id > succesor[1]):                    
-                    address = self.closest_preceding_finger(id)
-                    if tempid == address[1]:
-                        return [tempaddr,tempid]
-                    tempid = address[1]
-                    tempaddr = address[0]
-                    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    peerSocket.connect(address[0])
-                    peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))
-                    address = pickle.loads(peerSocket.recv(BUFFER))
-                    peerSocket.close()
-                    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    peerSocket.connect(address[0])
-                    peerSocket.sendall(pickle.dumps(["Sucesor"]))
-                    succesor = pickle.loads(peerSocket.recv(BUFFER))
-                    print("2",address[1], succesor[1],id)
-                    peerSocket.close()
-                    if address[1]<id and id < succesor[1]:
-                        return address
-                #peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                #peerSocket.connect(address[0])
-                #peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))                
-                #address = pickle.loads(peerSocket.recv(BUFFER))
-                #print("addres que devuelve al nodo que llame ",address)
-                #peerSocket.close()
-            elif self.id < self.succID: #and id > self.id:
-                print("self id y succesor id y id ",self.id, self.succID , id)
-                tempaddr = self.address
-                tempid = self.id
-                address = self.closest_preceding_finger(id)
-                peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                peerSocket.connect(address[0])
-                peerSocket.sendall(pickle.dumps(["Sucesor"]))
-                succesor = pickle.loads(peerSocket.recv(BUFFER))
-                peerSocket.close()
-                while (address[1]<id and id > succesor[1]):
-                    address = self.closest_preceding_finger(id)
-                    if tempid == address[1]:
-                        return [tempaddr,tempid]
-                    tempid = address[1]
-                    tempaddr = address[0]
-                    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    peerSocket.connect(address[0])
-                    peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))
-                    address = pickle.loads(peerSocket.recv(BUFFER))                    
-                    peerSocket.close()
-                    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    peerSocket.connect(address[0])
-                    peerSocket.sendall(pickle.dumps(["Sucesor"]))
-                    succesor = pickle.loads(peerSocket.recv(BUFFER))
-                    peerSocket.close()
-                    print("3",address[1], succesor[1],id)
-                    #self.printFingerTable()
-                    if address[1]<id and id < succesor[1]:
-                        return address
-
-
-
-                #if address[1] == self.id:
-                #    return address
-                #print("address que devuelve el closest ",address)
-                #peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                #peerSocket.connect(address[0])
-                #peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))                
-                #address = pickle.loads(peerSocket.recv(BUFFER))
-                #print("addres que devuelve al nodo que llame ",address)
-                #peerSocket.close()
-            #elif self.id < self.succID:# and id < self.id:
-                #[sucesor, id , yo]
-                #if self.succID<id and id < self.id:
-                #    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                #    peerSocket.connect(self.succ)
-                #    peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))
-                #    address = pickle.loads(peerSocket.recv(BUFFER))
-                #    peerSocket.close()
-                ## ] sucesor , yo [
-            #else: 
-            #        address = [self.address,self.id]
-            #else:
-            #    if self.id < id and id < self.succID:
-            #        address = [self.address,self.id]                    
-            #    else: 
-#
-            #        peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            #        peerSocket.connect(self.succ)
-            #        peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))
-            #        address = pickle.loads(peerSocket.recv(BUFFER))
-            #        peerSocket.close()
-            ##elif ( self.id<id and id < self.succID):
-            ##    address = [self.address,self.id]
-            ###elif (id>self.id and id>self.succID and self.predID == self.succID):
-            ###    pass
-            ##else:
-            ##    recvaddress = self.closest_preceding_finger(id)
-            ##    newaddr = recvaddress[0]
-            ##    print("new addres ",newaddr)
-            ##    print("recv addres ",recvaddress)
-            ##    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)              
-##
-            ##    print("nueva {0}",newaddr,recvaddress[1])
-            ##    peerSocket.connect(newaddr)
-            ##    peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))
-            ##    address = pickle.loads(peerSocket.recv(BUFFER))
-            ##    peerSocket.close()
-            ##    print("loop")
+        #print("my id {0} mi succesor{1}",self.id,self.succID)
+        #print("ID buscado{0}",id)
+        #print("{0},{1}".format(self.id, self.succID))
+        if (self.id < id and id < self.succID and self.id < self.succID) or (self.succID < self.id and (id < self.succID or id > self.id)) or self.succID == self.id or self.succID == id:       
+            return address
+        recvaddress = self.closest_preceding_finger(id)
+        peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)                
+        newaddr = recvaddress[0]
+        #print("nueva {0}",newaddr,recvaddress[1])
+        peerSocket.connect(newaddr)
+        peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))
+        address = pickle.loads(peerSocket.recv(BUFFER))
+        peerSocket.close()
         return address
-    
+
     def closest_preceding_finger(self,id):
         for key,value in reversed(self.fingerTable.items()):
-            if self.id < key and key < id:
-                return value 
+            if (self.id < value[1] and value[1] < id) or (id < self.id and (value[1]< id or value[1]>self.id)):
+                #print("---{}---".format((key,value)))
+                return [value[0],value[1]]
+
         return [self.address,self.id]
 
-    def mas_pequeno_menor(self):
-        keyid = [self.address,self.id]
-        for key,value in self.fingerTable.items():
-            if self.id > key:                
-                return value
-            keyid = value            
-        return keyid
-
-    ##    # Caso 0: si soy yo
-    ##    if self.id == keyID:
-    ##        datos = [0, self.address]
-    ##    # Caso 1: si nada mas existe 1 nodo
-    ##    elif self.succID == self.id:
-    ##        datos = [0, self.address]
-    ##    # Caso 2: si mi id es mayor que el keyID, preguntar al antecesor
-    ##    elif self.id > keyID:
-    ##        if self.predID < keyID:
-    ##            datos = [0, self.address]
-    ##        elif self.predID > self.id:
-    ##            datos = [0, self.address]
-    ##        else:
-    ##            datos = [1, self.pred]
-    ##    # Case 3: si mi id es menor que el keyID, usar la fingertable para buscar al mas cercano
-    ##    else:
-    ##        if self.id > self.succID:
-    ##            datos = [0, self.succ]
-    ##        else:
-    ##            value = ()
-    ##            for key, value in self.fingerTable.items():
-    ##                if key >= keyID:
-    ##                    break
-    ##            value = self.succ
-    ##            datos = [1, value]
-    ##    connection.sendall(pickle.dumps(datos))
 
     def mySucc(self):
         return [self.succ,self.succID]
@@ -468,13 +300,64 @@ class Node:
             if key > result and key < keyID:
                 result = key
                 address = value
-    def buscarServicio(self):
-        pass
+
+    def MenuServicio(self):
+        print("Connect to the network\n")    
+        ip = input('Enter IP to connect: ')
+        port = int(input('Enter port: '))
+        self.server = (ip,port)
+        self.succList = []
+
+    def BuscarServicio(self):
+        self.servicio = input("Que servicio desea buscar")
+
+    def ConnectServer(self):
+        try:
+            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peerSocket.connect(self.server)
+            peerSocket.sendall(pickle.dumps(["Buscar",self.servicio]))
+            recvAddr = pickle.loads(peerSocket.recv(BUFFER))
+            self.server = recvAddr
+            peerSocket.close()
+            datos = ["requestSuccList"]
+            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peerSocket.connect(recvAddr)
+            peerSocket.sendall(pickle.dumps(datos))
+            self.succList = pickle.loads(peerSocket.recv(BUFFER))
+            peerSocket.close()
+        except:
+            for n in self.succList:
+                try:
+                    self.ConnectServer()
+                except:
+                    continue
+
+
+    def BuscarInfo(self):
+        try:
+            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peerSocket.connect(self.server)
+            peerSocket.sendall(pickle.dumps(["Info"]))
+            recvInfo = pickle.loads(peerSocket.recv(BUFFER))
+            peerSocket.close()
+            print(recvInfo)
+        except:
+            for n in self.server:
+                try:
+                    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    peerSocket.connect(n)
+                    peerSocket.sendall(pickle.dumps(["Info"]))
+                    recvInfo = pickle.loads(peerSocket.recv(BUFFER))
+                    peerSocket.close()
+                    print(recvInfo)
+
+                except:
+                    continue
 
     def pingSucc(self):
         while True:
             # Ping every 5 seconds
-            time.sleep(5)
+            time.sleep(2)
             if self.address == self.succ:
             # If only one node, no need to ping
                 continue
@@ -483,36 +366,50 @@ class Node:
                 #print("abri el socket")
                 pSocket.connect(self.succ)
                 #print("me conecte")
-                pSocket.sendall(pickle.dumps(["Ping"]))
+                pSocket.sendall(pickle.dumps(["requestSuccList"]))
                 #print("envie ping")
-                recvPred = pickle.loads(pSocket.recv(BUFFER))
+                recvData = (pickle.loads(pSocket.recv(BUFFER)))
+                #print(self.succList)
                 pSocket.close()
-                
+                self.succList = [(self.succ, self.succID)]
+                for succ in recvData:
+                    if not (succ in self.succList):
+                        self.succList.append(succ)
+                        if len(self.succList) == 20: break
             except:
                 print('\nNode offline detected \nStabilizing...')
-                
-                if not self.succ == self.pred:
-                    # Search for the next succ
-                    recvAdd = self.getSuccessor(self.succID+1)
-                    self.succ = recvAdd[0]
-                    temp = self.succID
-                    self.succID = recvAdd[1]
-                    # Informa al nuevo sucesor para que actualice su predecesor conmigo
-                    pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    datos = ["ActualizaPredecesor",self.id]
-                    pSocket.connect(self.succ)
-                    pSocket.sendall(pickle.dumps(datos))
-                    datos = pickle.loads(pSocket.recv(BUFFER))
-                    pSocket.close()
-                    time.sleep(0.1)
-                    self.updateFingerTable()
-                    self.updateOtherFingerTables(temp)
-                else:
-                    self.pred = self.address
-                    self.predID = self.id
-                    self.succ = self.address
-                    self.succID = self.id
-   
+                while(True):
+                    try:
+                        if not self.succ == self.pred:
+                            self.succList.pop(0)
+                            self.succ = self.succList[0][0]
+                            self.succID = self.succList[0][1]
+                            #print(self.succ)
+                            # # Search for the next succ
+                            # recvAdd = self.getSuccessor(self.succID+1)
+                            # self.succ = recvAdd[0]
+                            # temp = self.succID
+                            # self.succID = recvAdd[1]
+                            
+                            # Informa al nuevo sucesor para que actualice su predecesor conmigo
+                            pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            datos = ["ActualizaPredecesor",self.id, self.address]
+                            pSocket.connect(self.succ)
+                            pSocket.sendall(pickle.dumps(datos))
+                            datos = pickle.loads(pSocket.recv(BUFFER))
+                            pSocket.close()
+                            time.sleep(0.1)
+                            self.updateFingerTable()
+                            self.updateOtherFingerTables(self.succID)
+                            break
+                        else:
+                            self.pred = self.address
+                            self.predID = self.id
+                            self.succ = self.address
+                            self.succID = self.id
+                            break
+                    except socket.error:
+                            print("error aqui por alguna razon")
 
 if __name__ == '__main__':
 
