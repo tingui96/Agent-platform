@@ -16,4 +16,4 @@ def getHash(key):
     return int(result.hexdigest(), 16) % 1000
 
 def getHashId(address,servicio):
-    return getHash(f'{servicio}')%1000*1000+getHash(f'{address[0]}:{str(address[1])}')
+    return getHash(f'{servicio}')*1000 + getHash(f'{address[0]}:{str(address[1])}')
