@@ -71,6 +71,9 @@ class Node:
             self.sendJoinRequest("127.0.0.1",8080)
         elif userChoice == '7':
             self.sendJoinRequest("127.0.0.1",8000)
+    
+    
+    
     def printFingerTable(self):
         print('Printing Finger Table')
         for key, value in self.fingerTable.items(): 
@@ -179,6 +182,7 @@ class Node:
             for succ in recvData:
                 if not (succ in self.succList):
                     self.succList.append(succ)
+                    if len(self.succList) == 20: break
             datos = ["ActualizaPredecesor",self.id,self.address]
             pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #me conecto al mi sucesor y le digo que se actualice conmigo
@@ -270,9 +274,9 @@ class Node:
 
     def closest_preceding_finger(self,id):
         for key,value in reversed(self.fingerTable.items()):
-            if (self.id < value[0] and value[0] < id) or (id < self.id and (value[0]< id or value[0]>self.id)):
+            if (self.id < value[1] and value[1] < id) or (id < self.id and (value[1]< id or value[1]>self.id)):
                 print("---{}---".format((key,value)))
-                return [value[1],value[0]]
+                return [value[0],value[1]]
 
         return [self.address,self.id]
 
@@ -342,6 +346,7 @@ class Node:
                 for succ in recvData:
                     if not (succ in self.succList):
                         self.succList.append(succ)
+                        if len(self.succList) == 20: break
             except:
                 print('\nNode offline detected \nStabilizing...')
                 while(True):
