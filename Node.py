@@ -55,6 +55,8 @@ class Node:
             self.start()
         elif userChoice == '1':
             self.servicio = input("Que servicio desea buscar")
+            self.BuscarServicioCliente()
+            self.MenuCliente()
         
     def agente(self):
         print("1- Connect to the network\n3- Print Finger Table\n4- Node Information")    
@@ -75,21 +77,7 @@ class Node:
             self.sendJoinRequest("127.0.0.1",8000)
         elif userChoice == '5':
             servicio = input("Servicio a buscar: ")
-            searchId = getHashId(self.address, servicio)
-            recAddress=self.getSuccessor(searchId)
-            serv = getHash(servicio)
-            print(recAddress)
-            predAddress = self.requestExecPred(recAddress[0])
-            print((recAddress[1],predAddress[1], serv))
-            if (int(recAddress[1] / 1000) != serv and int(predAddress[1] / 1000) != serv):
-                print(f"No se ha encontrado ese servicio en el servidor")
-            else: 
-                print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
-                if(int(recAddress[1] / 1000) == serv):
-                    res = self.requestExec(recAddress[0], input())
-                else:
-                    res = self.requestExec(predAddress[0], input())
-                print(res)
+            self.BuscarServicio(servicio)
 
 
     def requestExecPred(self, address):
@@ -202,6 +190,10 @@ class Node:
                 connection.sendall(pickle.dumps(self.pred))
             else:
                 connection.sendall(pickle.dumps([2,1,self.succ]))
+        elif connectionType == "Buscar":
+            recvAddr = self.getPredecessor(datos[1])
+            connection.sendall(pickle.dumps(recvAddr))            
+            pass
         elif connectionType == 3:
             self.SearchID(connection, address, datos)
         elif connectionType == 4:
@@ -399,8 +391,84 @@ class Node:
             if key > result and key < keyID:
                 result = key
                 address = value
-    def buscarServicio(self):
-        pass
+    
+    #####################################################################################
+    ###################################CLIENTE###########################################
+    #####################################################################################
+    def MenuServicio(self):
+        print("Connect to the network\n")    
+        ip = input('Enter IP to connect: ')
+        port = int(input('Enter port: '))
+        self.server = (ip,port)
+        self.succList = []
+
+    def MenuCliente(self):
+        while 1:
+            print("1- Buscar otro Servicio\n2-Brindar algun servicio")
+            choice = input()
+            if choice == "0":
+                self.servicio = input("Que servicio desea buscar:")
+                self.ConnectServer()
+                self.BuscarServicio(self.servicio)
+            else:
+                self.servicio = input("Que servicio desea brindar:")
+                self.id = self.predID = self.succID = getHashId((self.ip,self.port),self.servicio)
+                self.succList = [(self.address, self.id)]
+                self.agent = Agent(self.address, self.id, self.servicio)
+                self.escuchar()
+                self.updateFingerTable()
+                self.start()
+
+    def BuscarServicioCliente(self):
+        self.MenuServicio()
+        self.ConnectServer()
+        self.BuscarServicio(self.servicio)
+
+    def ConnectServer(self):
+        try:
+            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peerSocket.connect(self.server)
+            peerSocket.sendall(pickle.dumps(["Buscar",self.servicio]))
+            recvAddr = pickle.loads(peerSocket.recv(BUFFER))
+            self.server = recvAddr
+            peerSocket.close()
+            datos = ["requestSuccList"]
+            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peerSocket.connect(recvAddr)
+            peerSocket.sendall(pickle.dumps(datos))
+            self.succList = pickle.loads(peerSocket.recv(BUFFER))
+            peerSocket.close()
+        except:
+            if len(self.succList)>0:
+                self.server = self.succList.pop(0)
+                self.ConnectServer()
+            else:
+                print("No se encontro el servidor")
+
+    def BuscarServicio(self,servicio):
+        searchId = getHashId(self.address, servicio)
+        recAddress=self.getSuccessor(searchId)
+        serv = getHash(servicio)
+        print(recAddress)
+        predAddress = self.requestExecPred(recAddress[0])
+        print((recAddress[1],predAddress[1], serv))
+        if (int(recAddress[1] / 1000) != serv and int(predAddress[1] / 1000) != serv):
+            print(f"No se ha encontrado ese servicio en el servidor")
+        else: 
+            print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
+            if(int(recAddress[1] / 1000) == serv):
+                res = self.requestExec(recAddress[0], input())
+            else:
+                res = self.requestExec(predAddress[0], input())
+            print(res)
+
+
+   
+
+
+    
+    #########################################################################################
+
 
     def pingSucc(self):
         while True:
