@@ -11,6 +11,8 @@ import random
 import hashlib
 import threading
 from unittest import result
+
+from grpc import server
 from Agent import *
 
 from tools import *
@@ -46,7 +48,7 @@ class Node:
         self.menu()
         userChoice = input()
         if userChoice == '0':
-            self.servicio = input("Que servicio desea brindar:")
+            self.servicio = input("Que servicio desea brindar: ")
             self.id = self.predID = self.succID = getHashId((self.ip,self.port),self.servicio)
             self.succList = [(self.address, self.id)]
             self.agent = Agent(self.address, self.id, self.servicio)
@@ -54,12 +56,12 @@ class Node:
             self.updateFingerTable()
             self.start()
         elif userChoice == '1':
-            self.servicio = input("Que servicio desea buscar")
+            self.servicio = input("Que servicio desea buscar: ")
             self.BuscarServicioCliente()
             self.MenuCliente()
         
     def agente(self):
-        print("1- Connect to the network\n3- Print Finger Table\n4- Node Information")    
+        print("1- Connect to the network\n3- Print Finger Table\n4- Node Information\n5- Buscar Servicio")    
         userChoice = input()
         if userChoice == '1':
             ip = input('Enter IP to connect: ')
@@ -407,7 +409,7 @@ class Node:
             print("1- Buscar otro Servicio\n2-Brindar algun servicio")
             choice = input()
             if choice == "0":
-                self.servicio = input("Que servicio desea buscar:")
+                self.servicio = input("Que servicio desea buscar: ")
                 self.ConnectServer()
                 self.BuscarServicio(self.servicio)
             else:
@@ -422,7 +424,7 @@ class Node:
     def BuscarServicioCliente(self):
         self.MenuServicio()
         self.ConnectServer()
-        self.BuscarServicio(self.servicio)
+        self.GetServicio()
 
     def ConnectServer(self):
         try:
@@ -444,6 +446,22 @@ class Node:
                 self.ConnectServer()
             else:
                 print("No se encontro el servidor")
+
+    def GetServicio(self):
+        serv = getHash(self.servicio)
+        predAddress = self.requestExecPred(self.server)
+        recvAddres = getHashId(self.server,"vacio")
+        if (int(recvAddres / 1000) != serv and int(predAddress[1] / 1000) != serv):
+            print(f"No se ha encontrado ese servicio en el servidor")            
+        else: 
+            print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
+            if(int(recvAddres / 1000) == serv):
+                res = self.requestExec(self.server, input())
+            else:
+                res = self.requestExec(predAddress[0], input())
+            print(res)
+
+#########################################################################################
 
     def BuscarServicio(self,servicio):
         searchId = getHashId(self.address, servicio)
@@ -467,7 +485,7 @@ class Node:
 
 
     
-    #########################################################################################
+    
 
 
     def pingSucc(self):
