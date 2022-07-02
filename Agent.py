@@ -5,12 +5,22 @@ import pickle
 import socket
 import os
 import time
+import Node2
 
 class Agent():
     def __init__(self, address,id,service):
         self.ip,self.port = address
         self.id = id
         self.service = service
+
+    def Negotiation(self, agent, node = Node2.Node):
+        pass
+
+
+    def SubcribeRequest(self, agent, node):
+        pass
+
+
 
     def Exectute(self, argv):
         s2_out = (subprocess.check_output([sys.executable, f"./Agent/{self.service}.py", argv])).decode("utf_8")
