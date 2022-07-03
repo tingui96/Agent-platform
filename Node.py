@@ -82,7 +82,7 @@ class Node:
             self.BuscarServicio(servicio)
 
 
-    def requestExecPred(self, address):
+    def requestPred(self, address):
         datos = ["Predecesor"]
         peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         peerSocket.connect((address))
@@ -174,8 +174,9 @@ class Node:
             sendRes = self.agent.Exectute(datos[1])
             connection.sendall(pickle.dumps(sendRes))
         elif connectionType == "RequestAgentState":
+            print("se pidio el estado del agente")
             state = self.agent.state
-            connection.sendall(pickle.dump([state, self.succ, self.succID]))
+            connection.sendall(pickle.dumps([state, self.succ, self.succID]))
         elif connectionType == "RequestAgent":
             time.sleep(0.2)
             print(f"Llega la petición")
@@ -209,7 +210,7 @@ class Node:
         elif connectionType == 5:
             self.updateFingerTable()  
         else:
-            print('Problem with connection type')
+            print('Problem with connection type {}'.format(connectionType))
 
     def sendJoinRequest(self, ip, port):
         try:
@@ -269,8 +270,7 @@ class Node:
             print('Socket error. Recheck IP/Port.')
 
 
-    def CrearAgente(self):
-        pass
+
 
     def RequestAgent(self, address):
         print("Pide el agente")
@@ -322,8 +322,13 @@ class Node:
             self.fingerTable[entryId] = (recvAddr[0], recvAddr[1])
 
     def updateOtherFingerTables(self,id):
+        peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peerSocket.connect(self.pred)
+        peerSocket.sendall(pickle.dumps([5]))
+        peerSocket.close()
         for i in range(1,21):
-            p = self.getPredecessor(id-2**(i-1)%MAX_NODES)
+            p = self.getPredecessor((id-2**(i-1))%MAX_NODES)
+            print(p)
             peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peerSocket.connect(p[0])
             peerSocket.sendall(pickle.dumps([5]))
@@ -339,17 +344,17 @@ class Node:
         recvaddress = self.closest_preceding_finger(id)
         peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)                
         newaddr = recvaddress[0]
-        #print("nueva {0}",newaddr,recvaddress[1])
+        #print("nueva {0} {1} {2}".format(newaddr,recvaddress[1], id))
         peerSocket.connect(newaddr)
         peerSocket.sendall(pickle.dumps(["GetPredecesor",id]))
         address = pickle.loads(peerSocket.recv(BUFFER))
+        #print("&&&&&&{}&&&&&&&".format(address))
         peerSocket.close()
         return address
 
     def closest_preceding_finger(self,id):
         for key,value in reversed(self.fingerTable.items()):
-            if (self.id < value[1] and value[1] < id) or (id < self.id and (value[1]< id or value[1]>self.id)):
-                #print("---{}---".format((key,value)))
+            if (self.id < value[1] and value[1] < id) or (id < self.id and (value[1]< id or value[1]>self.id) or (self.id == id and value[1] != self.id)):
                 return [value[0],value[1]]
 
         return [self.address,self.id]
@@ -414,7 +419,7 @@ class Node:
             if choice == "0":
                 self.servicio = input("Que servicio desea buscar: ")
                 self.ConnectServer()
-                self.BuscarServicio(self.servicio)
+                self.GetServicio()
             else:
                 self.servicio = input("Que servicio desea brindar:")
                 self.id = self.predID = self.succID = getHashId((self.ip,self.port),self.servicio)
@@ -439,7 +444,7 @@ class Node:
             self.server = recvAddr[0]
             print("Recibi server", self.server)
             peerSocket.close()
-            datos = ["requestSuccList"]
+            datos = ["RequestSuccList"]
             peerSocket1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peerSocket1.connect(self.server)
             peerSocket1.sendall(pickle.dumps(datos))
@@ -449,7 +454,7 @@ class Node:
             peerSocket1.close()
         except:
             if len(self.succList)>0:
-                self.server = self.succList.pop(0)
+                self.server = self.succList.pop(0)[0]
                 self.ConnectServer()
             else:
                 #print("No se encontro el servidor")
@@ -458,20 +463,12 @@ class Node:
     def GetServicio(self):
         serv = getHash(self.servicio)
         print("get servicio al server",self.server)
-        predAddress = self.requestExecPred(self.server)
-        recvAddres = getHashId(self.server,self.servicio)
+        predAddress = self.requestPred(self.server)
+        recAddress = getHashId(self.server,self.servicio)
         print( "predddecesor addres",predAddress)
-        print("recvadress", recvAddres)
+        print("recvadress", recAddress)
         print("ServicioID", serv)
-        if (int(recvAddres / 1000) != serv and int(predAddress[1] / 1000) != serv):
-            print(f"No se ha encontrado ese servicio en el servidor")            
-        else: 
-            print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
-            if(int(recvAddres / 1000) == serv):
-                res = self.requestExec(self.server, input())
-            else:
-                res = self.requestExec(predAddress[0], input())
-            print(res)
+        self.FindBestAgent(serv, [self.server,recAddress], predAddress)
 
 #########################################################################################
 
@@ -479,38 +476,45 @@ class Node:
         searchId = getHashId(self.address, servicio)
         recAddress=self.getSuccessor(searchId)
         serv = getHash(servicio)
-        predAddress = self.requestExecPred(recAddress[0])
-        if (int(recAddress[1] / 1000) != serv and int(predAddress[1] / 1000) != serv):
-            print(f"No se ha encontrado ese servicio en el servidor")
-        else: 
-            print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
-            if(int(recAddress[1] / 1000) == serv):
-                res = self.requestExec(recAddress[0], input())
-            else:
-                res = self.requestExec(predAddress[0], input())
-            print(res)
+        print(recAddress)
+        predAddress = self.requestPred(recAddress[0])
+        self.FindBestAgent(serv, recAddress, predAddress)
 
 ##########################################################################################
 
-    def FindBestAgent(self, servicioID, serv, pred):
+    def FindBestAgent(self, servicioID, succ, pred):
+        print("servicio:{0}, succ{1}, pred{2}".format(servicioID,succ,pred))
         servToExec = pred
+        _serv = succ
+        free = False
         timer = sys.maxsize
-        if (int(serv[1])/1000 != servicioID and int(pred[1])/1000 != servicioID):
+        if (int(pred[1]/1000) != servicioID):
             print(f"No se ha encontrado ese servicio en el servidor")
         else:
+            print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
+            inpt = input()
             datos = ["RequestAgentState"]
-            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            while(serv[1]/1000 == servicioID):
+            while(True):
+                peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 t0 = time.time()
-                peerSocket.connect(serv[0])
+                peerSocket.connect(_serv[0])
                 peerSocket.sendall(pickle.dumps(datos))
                 state = pickle.loads(peerSocket.recv(BUFFER))
                 t1 = time.time() - t0
-                timer = t1 if state[0] and t1 < timer else timer
-                servToExec 
                 peerSocket.close()
-                
-            
+                if (state[0] or (not free)) and t1 < timer:
+                    timer = t1 
+                    servToExec = [state[1], state[2]]
+                    free = state[0]
+                _serv = [state[1],state[2]]
+                if (int(_serv[1]/1000) != servicioID or _serv == succ): break
+            if free:
+                print(servToExec)
+                res = self.requestExec(servToExec[0],inpt)
+                print(res)
+            else:
+                # Implementar esto
+                pass
 
    
 
