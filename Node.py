@@ -192,7 +192,9 @@ class Node:
         elif connectionType == "RecibirAgente":
             time.sleep(0.2)
             print("Comienza a recibir")
-            self.agent.RecibirAgente(connection)
+            time.sleep(0.5)
+            print(self.agent.RecibirAgente(connection))
+            time.sleep(0.5)
             print("Se recibio el agente con éxito")
         elif connectionType == 2:
             if datos[1] == 0:
@@ -275,7 +277,7 @@ class Node:
         except socket.error:
             print('Socket error. Recheck IP/Port.')
 
-
+    
 
 
     def RequestAgent(self, address):
