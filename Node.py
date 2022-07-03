@@ -591,13 +591,15 @@ class Node:
                             st.write("Socket error")
 
 if __name__ == '__main__':
+    st.title("Welcome to Agents Platform")
+    port = st.get_option("server.port")
+    ip = socket.gethostbyname(socket.gethostname())
+    #if len(sys.argv) < 3:
+    #    print('Arguments not supplied (defaults used)')
+    #else:
+    #    IP = sys.argv[1]
+    #    PORT = int(sys.argv[2])
 
-    if len(sys.argv) < 3:
-        print('Arguments not supplied (defaults used)')
-    else:
-        IP = sys.argv[1]
-        PORT = int(sys.argv[2])
-
-    node = Node(IP, PORT)
-    print(f'My ID is: {node.id}')
+    node = Node(ip, port)
+    st.write(f'My ID is: {node.id}')
     node.Cliente()
