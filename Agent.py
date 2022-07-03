@@ -1,10 +1,14 @@
+import queue
 import subprocess
 import sys
+
+from sqlalchemy import true
 from tools import *
 import pickle
 import socket
 import os
 import time
+import threading
 
 class Agent():
     def __init__(self, address,id,service):
@@ -12,15 +16,32 @@ class Agent():
         self.id = id
         self.service = service
         self.state = True
+        self.queue = []
+        self.startQueueThread()
 
-    def Exectute(self, argv):
+    def Exectute(self, argv, connection):
         if self.state:
             self.state = False
             result = (subprocess.check_output([sys.executable, f"./Agent/{self.service}.py", argv])).decode("utf_8")
             self.state = True
+            connection.sendall(pickle.dumps(result))
+
         else:
-            result = "Busy, cant do it now"
-        return(result)
+            self.queue.append([argv, connection])
+            print("Estoy ocupado")
+            return
+
+    def startQueueThread(self):
+        threading.Thread(target=self.CheckQueue, args=()).start()
+
+
+    def CheckQueue(self):
+        while(true):
+            if len(self.queue) and self.state:
+                elem = self.queue.pop()
+                self.Exectute(elem[0], elem[1])
+
+
 
     def SendAgent(self, connection):
         time.sleep(0.2)

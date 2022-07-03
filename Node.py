@@ -2,6 +2,7 @@ from genericpath import exists
 from multiprocessing import connection
 from operator import mod
 import os
+import queue
 from sqlite3 import connect
 import sys
 import time
@@ -12,7 +13,6 @@ import hashlib
 import threading
 from unittest import result
 
-from grpc import server
 from Agent import *
 
 from tools import *
@@ -98,7 +98,10 @@ class Node:
         peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         peerSocket.connect((address))
         peerSocket.sendall(pickle.dumps(datos))
+        print("pedi ejecutar")
+        time.sleep(0.2)
         datos = pickle.loads(peerSocket.recv(BUFFER)) 
+        print("Recibi los resultados")
         peerSocket.close()
         return(datos)    
 
@@ -171,12 +174,12 @@ class Node:
         elif connectionType == "RequestSuccList":
             connection.sendall(pickle.dumps(self.succList))
         elif connectionType == "ExecAgent":
-            sendRes = self.agent.Exectute(datos[1])
-            connection.sendall(pickle.dumps(sendRes))
+            self.agent.Exectute(datos[1],connection)
         elif connectionType == "RequestAgentState":
             print("se pidio el estado del agente")
             state = self.agent.state
-            connection.sendall(pickle.dumps([state, self.succ, self.succID]))
+            queue = len(self.agent.queue)
+            connection.sendall(pickle.dumps([state, self.succ, self.succID, queue]))
         elif connectionType == "RequestAgent":
             time.sleep(0.2)
             print(f"Llega la petición")
@@ -260,8 +263,11 @@ class Node:
             print("Comienza el envio")
             serv = getHash(self.servicio)
             if(int(self.succID/1000) != serv and int(self.predID/1000) != serv):
-                print("Se ha creado un archivo en la carpeta Agent del proyecto, por favor llene los campos correspondientes")
-                self.CrearAgente()
+                if("{}.py".format(self.servicio) not in os.listdir("./Agent/")):
+                    print("Se ha creado un archivo en la carpeta Agent del proyecto, por favor llene los campos correspondientes")
+                    self.CrearAgente()
+                else:
+                    print("Entre bien")
             elif (int(self.succID/1000) == serv):
                 self.RequestAgent(self.succ)
             else:
@@ -463,12 +469,15 @@ class Node:
     def GetServicio(self):
         serv = getHash(self.servicio)
         print("get servicio al server",self.server)
-        predAddress = self.requestPred(self.server)
+        try:
+            predAddress = self.requestPred(self.server)
+        except:
+            exit()
         recAddress = getHashId(self.server,self.servicio)
         print( "predddecesor addres",predAddress)
         print("recvadress", recAddress)
         print("ServicioID", serv)
-        self.FindBestAgent(serv, [self.server,recAddress], predAddress)
+        self.FindBestAgent(serv, [self.server,recAddress], predAddress, 0, self.servicio)
 
 #########################################################################################
 
@@ -478,44 +487,73 @@ class Node:
         serv = getHash(servicio)
         print(recAddress)
         predAddress = self.requestPred(recAddress[0])
-        self.FindBestAgent(serv, recAddress, predAddress)
+        self.FindBestAgent(serv, recAddress, predAddress, 1, servicio)
 
 ##########################################################################################
 
-    def FindBestAgent(self, servicioID, succ, pred):
+    def FindBestAgent(self, servicioID, succ, pred, type, servicio):
         print("servicio:{0}, succ{1}, pred{2}".format(servicioID,succ,pred))
         servToExec = pred
-        _serv = succ
+        _serv = succ if int(succ[1]/1000) == servicioID else pred 
         free = False
+        _queue = sys.maxsize
         timer = sys.maxsize
-        if (int(pred[1]/1000) != servicioID):
+        if (int(pred[1]/1000) != servicioID and int(succ[1]/1000) != servicioID):
             print(f"No se ha encontrado ese servicio en el servidor")
         else:
-            print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
-            inpt = input()
-            datos = ["RequestAgentState"]
-            while(True):
-                peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                t0 = time.time()
-                peerSocket.connect(_serv[0])
-                peerSocket.sendall(pickle.dumps(datos))
-                state = pickle.loads(peerSocket.recv(BUFFER))
-                t1 = time.time() - t0
-                peerSocket.close()
-                if (state[0] or (not free)) and t1 < timer:
-                    timer = t1 
-                    servToExec = [state[1], state[2]]
-                    free = state[0]
-                _serv = [state[1],state[2]]
-                if (int(_serv[1]/1000) != servicioID or _serv == succ): break
-            if free:
-                print(servToExec)
-                res = self.requestExec(servToExec[0],inpt)
-                print(res)
-            else:
-                # Implementar esto
-                pass
-
+            try:
+                print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
+                inpt = input()
+                datos = ["RequestAgentState"]
+                while(True):
+                    print("*********{}*********".format(_serv))
+                    peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    t0 = time.time()
+                    peerSocket.connect(_serv[0])
+                    peerSocket.sendall(pickle.dumps(datos))
+                    state = pickle.loads(peerSocket.recv(BUFFER))
+                    t1 = time.time() - t0
+                    peerSocket.close()
+                    print(state)
+                    if (not (state[0] or free) and state[3] < _queue):
+                        servToExec = _serv 
+                        _queue = state[3]
+                    elif (state[0] and t1 < timer):
+                        timer = t1 
+                        servToExec = _serv
+                        free = True
+                        _queue = 0
+                    _serv = [state[1],state[2]]
+                    print("*********{}*********".format(_serv))
+                    print("############ {} ############".format(int(_serv[1]/1000) != servicioID))
+                    if ((int(_serv[1]/1000) != servicioID) or _serv == succ): break
+                if free:
+                    print(servToExec)
+                    res = self.requestExec(servToExec[0],inpt)
+                    print(res)
+                else:
+                    print(f"Todos los agentes que realizan el servicio se encuentran ocupados, desea:\n1-Entrar en cola\n2-Volver al menu")
+                    if (input()=="1"):
+                        res = self.requestExec(servToExec[0],inpt)    
+                        print(res)
+            except:
+                if (type):
+                    time.sleep(2)
+                    self.BuscarServicio(servicio)
+                else:
+                    print("esperando 1 segundo")
+                    time.sleep(2)
+                    self.ConnectServer()
+                    self.GetServicio()
+    
+    def requestQueue(self, address):
+        datos = ["QueueInAgent", address]
+        peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peerSocket.connect((address))
+        peerSocket.sendall(pickle.dumps(datos))
+        datos = pickle.loads(peerSocket.recv(BUFFER)) 
+        peerSocket.close()
+        return(datos)  
    
 
 
@@ -526,7 +564,7 @@ class Node:
     def pingSucc(self):
         while True:
             # Ping every 5 seconds
-            time.sleep(2)
+            time.sleep(1)
             if self.address == self.succ:
             # If only one node, no need to ping
                 continue
