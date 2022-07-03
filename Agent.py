@@ -11,10 +11,16 @@ class Agent():
         self.ip,self.port = address
         self.id = id
         self.service = service
+        self.state = True
 
     def Exectute(self, argv):
-        s2_out = (subprocess.check_output([sys.executable, f"./Agent/{self.service}.py", argv])).decode("utf_8")
-        return(s2_out)
+        if self.state:
+            self.state = False
+            result = (subprocess.check_output([sys.executable, f"./Agent/{self.service}.py", argv])).decode("utf_8")
+            self.state = True
+        else:
+            result = "Busy, cant do it now"
+        return(result)
 
     def SendAgent(self, connection):
         time.sleep(0.2)

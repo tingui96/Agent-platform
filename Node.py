@@ -173,6 +173,9 @@ class Node:
         elif connectionType == "ExecAgent":
             sendRes = self.agent.Exectute(datos[1])
             connection.sendall(pickle.dumps(sendRes))
+        elif connectionType == "RequestAgentState":
+            state = self.agent.state
+            connection.sendall(pickle.dump([state, self.succ, self.succID]))
         elif connectionType == "RequestAgent":
             time.sleep(0.2)
             print(f"Llega la petición")
@@ -467,9 +470,7 @@ class Node:
         searchId = getHashId(self.address, servicio)
         recAddress=self.getSuccessor(searchId)
         serv = getHash(servicio)
-        print(recAddress)
         predAddress = self.requestExecPred(recAddress[0])
-        print((recAddress[1],predAddress[1], serv))
         if (int(recAddress[1] / 1000) != serv and int(predAddress[1] / 1000) != serv):
             print(f"No se ha encontrado ese servicio en el servidor")
         else: 
@@ -480,6 +481,27 @@ class Node:
                 res = self.requestExec(predAddress[0], input())
             print(res)
 
+##########################################################################################
+
+    def FindBestAgent(self, servicioID, serv, pred):
+        servToExec = pred
+        timer = sys.maxsize
+        if (int(serv[1])/1000 != servicioID and int(pred[1])/1000 != servicioID):
+            print(f"No se ha encontrado ese servicio en el servidor")
+        else:
+            datos = ["RequestAgentState"]
+            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            while(serv[1]/1000 == servicioID):
+                t0 = time.time()
+                peerSocket.connect(serv[0])
+                peerSocket.sendall(pickle.dumps(datos))
+                state = pickle.loads(peerSocket.recv(BUFFER))
+                t1 = time.time() - t0
+                timer = t1 if state[0] and t1 < timer else timer
+                servToExec 
+                peerSocket.close()
+                
+            
 
    
 
