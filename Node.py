@@ -42,7 +42,7 @@ class Node:
             st.error('Socket not opened')
 
     def menu(self):  
-        option = st.selectbox('', ('What would you like to do', 'Provide Service', 'Search Service'))
+        option = st.selectbox('', ('What would you like to do', 'Provide Service', 'Search Service'), key = str(self.id + 3))
         if option == 'Provide Service':
             return 0
         elif option == 'Search Service':
@@ -59,15 +59,15 @@ class Node:
             self.updateFingerTable()
             self.start()
         elif userChoice == 1:
-            self.servicio = st.text_input("What service do you want to search for?: ")
+            self.servicio = st.text_input("What service do you want to search for?: ", '')
             self.BuscarServicioCliente()
             self.MenuCliente()
         
     def agente(self):
-        option = st.selectbox('', ('What would you like to do', 'Connect to the network', 'Search Service'))
+        option = st.selectbox('', ('What would you like to do', 'Connect to the network', 'Search Service'), key = str(self.id + 2))
         if option == 'Connect to the network':
-            ip = st.text_input('Enter IP to connect: ')
-            port = st.text_input('Enter port: ')
+            ip = st.text_input('Enter IP to connect: ', '')
+            port = st.text_input('Enter port: ', '')
             self.sendJoinRequest(ip, int(port))
         elif option == 'Search Service':
             servicio = st.text_input('What service do you want to search for?', '')
@@ -390,17 +390,17 @@ class Node:
     def MenuCliente(self):
         while 1:
             choice = -1
-            option = st.selectbox('', ('Que desea hacer', 'Brindar Servicio', 'Buscar Servicio'))
+            option = st.selectbox('', ('Que desea hacer', 'Brindar Servicio', 'Buscar Servicio'), key = str(self.id + 1))
             if option == 'Brindar Servicio':
                 choice = 1
             elif option == 'Buscar Servicio':
                 choice = 0
             if choice == 0:
-                self.servicio = st.text_input("What service do you want to search for?: ")
+                self.servicio = st.text_input("What service do you want to search for?: ", '')
                 self.ConnectServer()
                 self.GetServicio()
             elif choice == 1:
-                self.servicio = st.text_input("What service do you want to provide?:")
+                self.servicio = st.text_input("What service do you want to provide?:", '')
                 self.id = self.predID = self.succID = getHashId((self.ip,self.port),self.servicio)
                 self.succList = [(self.address, self.id)]
                 self.agent = Agent(self.address, self.id, self.servicio)
@@ -476,7 +476,7 @@ class Node:
             try:
                 st.write("That service was found")
                 inpt = 0
-                option = st.selectbox('', ('Que desea hacer', 'Description', 'Execute'))
+                option = st.selectbox('', ('Que desea hacer', 'Description', 'Execute'), key = str(self.id + 5))
                 if option == 'Description':
                     inpt = 1
                 elif option == 'Execute':
@@ -511,7 +511,7 @@ class Node:
                 else:
                     st.write("All agents performing the service are busy")
                     inputq = 0
-                    option = st.selectbox('', ('What would you like to do', 'Enter queue', 'Back to menu'))
+                    option = st.selectbox('', ('What would you like to do', 'Enter queue', 'Back to menu'), key = str(self.id + 4))
                     if option == 'Enter queue':
                         inputq = 1
                     elif option == 'Back to menu':
