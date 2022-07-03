@@ -406,7 +406,7 @@ class Node:
 
     def MenuCliente(self):
         while 1:
-            print("1- Buscar otro Servicio\n2-Brindar algun servicio")
+            print("0- Buscar otro Servicio\n1- Brindar algun servicio")
             choice = input()
             if choice == "0":
                 self.servicio = input("Que servicio desea buscar: ")
@@ -430,27 +430,36 @@ class Node:
         try:
             peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peerSocket.connect(self.server)
-            peerSocket.sendall(pickle.dumps(["Buscar",self.servicio]))
+            x = getHash(self.servicio) * 1000 + 999
+            peerSocket.sendall(pickle.dumps(["Buscar",x]))
             recvAddr = pickle.loads(peerSocket.recv(BUFFER))
-            self.server = recvAddr
+            self.server = recvAddr[0]
+            print("Recibi server", self.server)
             peerSocket.close()
             datos = ["requestSuccList"]
-            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peerSocket.connect(recvAddr)
-            peerSocket.sendall(pickle.dumps(datos))
-            self.succList = pickle.loads(peerSocket.recv(BUFFER))
-            peerSocket.close()
+            peerSocket1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peerSocket1.connect(self.server)
+            peerSocket1.sendall(pickle.dumps(datos))
+            self.succList = pickle.loads(peerSocket1.recv(BUFFER))
+            print("recibi lista de server",self.succList)
+
+            peerSocket1.close()
         except:
             if len(self.succList)>0:
                 self.server = self.succList.pop(0)
                 self.ConnectServer()
             else:
-                print("No se encontro el servidor")
+                #print("No se encontro el servidor")
+                pass
 
     def GetServicio(self):
         serv = getHash(self.servicio)
+        print("get servicio al server",self.server)
         predAddress = self.requestExecPred(self.server)
-        recvAddres = getHashId(self.server,"vacio")
+        recvAddres = getHashId(self.server,self.servicio)
+        print( "predddecesor addres",predAddress)
+        print("recvadress", recvAddres)
+        print("ServicioID", serv)
         if (int(recvAddres / 1000) != serv and int(predAddress[1] / 1000) != serv):
             print(f"No se ha encontrado ese servicio en el servidor")            
         else: 
