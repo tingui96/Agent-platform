@@ -14,7 +14,7 @@ import threading
 from unittest import result
 
 from Agent import *
-
+import streamlit as st
 from tools import *
 from collections import OrderedDict
 
@@ -39,48 +39,39 @@ class Node:
             self.ServerSocket.bind((IP, PORT))
             self.ServerSocket.listen()
         except socket.error:
-            print('Socket not opened')
+            st.error('Socket not opened')
 
-    def menu(self):        
-        print("0-Brindar Servicio\n1-Buscar Servicio")  
+    def menu(self):  
+        option = st.selectbox('', ('What would you like to do', 'Provide Service', 'Search Service'))
+        if option == 'Provide Service':
+            return 0
+        elif option == 'Search Service':
+            return 1    
 
     def Cliente(self):
-        self.menu()
-        userChoice = input()
-        if userChoice == '0':
-            self.servicio = input("Que servicio desea brindar: ")
+        userChoice = self.menu()
+        if userChoice == 0:
+            self.servicio = st.text_input("What service do you want to provide?: ", '')
             self.id = self.predID = self.succID = getHashId((self.ip,self.port),self.servicio)
             self.succList = [(self.address, self.id)]
             self.agent = Agent(self.address, self.id, self.servicio)
             self.escuchar()
             self.updateFingerTable()
             self.start()
-        elif userChoice == '1':
-            self.servicio = input("Que servicio desea buscar: ")
+        elif userChoice == 1:
+            self.servicio = st.text_input("What service do you want to search for?: ")
             self.BuscarServicioCliente()
             self.MenuCliente()
         
     def agente(self):
-        print("1- Connect to the network\n3- Print Finger Table\n4- Node Information\n5- Buscar Servicio")    
-        userChoice = input()
-        if userChoice == '1':
-            ip = input('Enter IP to connect: ')
-            port = input('Enter port: ')
+        option = st.selectbox('', ('What would you like to do', 'Connect to the network', 'Search Service'))
+        if option == 'Connect to the network':
+            ip = st.text_input('Enter IP to connect: ')
+            port = st.text_input('Enter port: ')
             self.sendJoinRequest(ip, int(port))
-        elif userChoice == '3':
-            self.printFingerTable()
-        elif userChoice == '4':
-            print(f'My ID: {self.id}')
-            print(f'Predecessor: {self.predID}')
-            print(f'Successor: {self.succID}')
-        elif userChoice == '6':
-            self.sendJoinRequest("127.0.0.1",8080)
-        elif userChoice == '7':
-            self.sendJoinRequest("127.0.0.1",8000)
-        elif userChoice == '5':
-            servicio = input("Servicio a buscar: ")
+        elif option == 'Search Service':
+            servicio = st.text_input('What service do you want to search for?', '')
             self.BuscarServicio(servicio)
-
 
     def requestPred(self, address):
         datos = ["Predecesor"]
@@ -89,31 +80,27 @@ class Node:
         peerSocket.sendall(pickle.dumps(datos))
         datos = pickle.loads(peerSocket.recv(BUFFER)) 
         peerSocket.close()
-        print(datos)
+        st.write(datos)
         return(datos)    
-
 
     def requestExec(self, address, arg):
         datos = ["ExecAgent", arg]
         peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         peerSocket.connect((address))
         peerSocket.sendall(pickle.dumps(datos))
-        print("pedi ejecutar")
+        st.write("Request execute")
         time.sleep(0.2)
         datos = pickle.loads(peerSocket.recv(BUFFER)) 
-        print("Recibi los resultados")
+        st.write("I received the results")
         peerSocket.close()
         return(datos)    
 
-
-    
     def printFingerTable(self):
-        print('Printing Finger Table')
-        for key, value in self.fingerTable.items(): 
-            print(f'KeyID: {key}, Value: {value}')
-
-    
-    
+        #print('Printing Finger Table')
+        #for key, value in self.fingerTable.items(): 
+        #    print(f'KeyID: {key}, Value: {value}')
+        st.write(self.fingerTable)
+        
     def start(self):
         '''
         Accepting connections from other threads.
@@ -122,7 +109,7 @@ class Node:
         threading.Thread(target=self.pingSucc, args=()).start()
         # In case of connecting to other clients
         while True:
-            print('Listening to other clients')
+            st.write('Listening to other clients')
             self.agente()
 
     def listenThread(self):
@@ -143,14 +130,12 @@ class Node:
         datos[0] da el tipo de conexion
         Tipos de conecciones 0 : nodo nuevo
         '''
-
         datos = pickle.loads(connection.recv(BUFFER))
         connectionType = datos[0]
         if connectionType == "Unirme":
-            print(f'Connection with: {address[0]} : {address[1]}')
-            print('Join network request recevied')
+            st.write(f'Connection with: {address[0]} : {address[1]}')
+            st.write('Join network request recevied')
             self.joinNode(connection, address, datos)
-            #print("conection {0}",address)
         elif connectionType == "Sucesor":
             datos = self.mySucc()
             connection.sendall(pickle.dumps(datos))
@@ -162,7 +147,6 @@ class Node:
             connection.sendall(pickle.dumps(recvAddr))
         elif connectionType == "ActualizaPredecesor":
             connection.sendall(pickle.dumps([self.pred,self.predID]))
-            #print("Actualiza {0}",address)
             self.pred = datos[2]
             self.predID = datos[1]
         elif connectionType == "ActualizaSucesor":
@@ -176,13 +160,13 @@ class Node:
         elif connectionType == "ExecAgent":
             self.agent.Exectute(datos[1],connection)
         elif connectionType == "RequestAgentState":
-            print("se pidio el estado del agente")
+            st.write("They asked about my status")
             state = self.agent.state
             queue = len(self.agent.queue)
             connection.sendall(pickle.dumps([state, self.succ, self.succID, queue]))
         elif connectionType == "RequestAgent":
             time.sleep(0.2)
-            print(f"Llega la petición")
+            st.write("The request arrives")
             connection.close()
             pSocket3 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             pSocket3.connect(datos[1])
@@ -191,11 +175,11 @@ class Node:
             self.agent.SendAgent(pSocket3)
         elif connectionType == "RecibirAgente":
             time.sleep(0.2)
-            print("Comienza a recibir")
+            st.write("Start receiving")
             time.sleep(0.5)
-            print(self.agent.RecibirAgente(connection))
+            st.write(self.agent.RecibirAgente(connection))
             time.sleep(0.5)
-            print("Se recibio el agente con éxito")
+            st.write("The agent was received successfully")
         elif connectionType == 2:
             if datos[1] == 0:
                 connection.sendall(pickle.dumps(self.pred))
@@ -215,11 +199,10 @@ class Node:
         elif connectionType == 5:
             self.updateFingerTable()  
         else:
-            print('Problem with connection type {}'.format(connectionType))
+            st.error('Problem with connection type {}'.format(connectionType))
 
     def sendJoinRequest(self, ip, port):
         try:
-            
             peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peerSocket.connect((ip,port))
             # 0 para que sepa que me quiero unir y le mando mi ip,puerto y mi servicio
@@ -262,31 +245,46 @@ class Node:
             self.updateFingerTable()
             self.updateOtherFingerTables(self.id)
             time.sleep(0.5)
-            print("Comienza el envio")
+            st.write("Shipping begins")
             serv = getHash(self.servicio)
             if(int(self.succID/1000) != serv and int(self.predID/1000) != serv):
                 if("{}.py".format(self.servicio) not in os.listdir("./Agent/")):
-                    print("Se ha creado un archivo en la carpeta Agent del proyecto, por favor llene los campos correspondientes")
+                    st.write("A file has been created in the Agent folder of the project, please fill in the corresponding fields")
                     self.CrearAgente()
                 else:
-                    print("Entre bien")
+                    st.write("Good")
             elif (int(self.succID/1000) == serv):
                 self.RequestAgent(self.succ)
             else:
                 self.RequestAgent(self.pred)
         except socket.error:
-            print('Socket error. Recheck IP/Port.')
+            st.error('Socket error. Recheck IP/Port.')
 
-    
-
+    def CrearAgente(self):
+        description = st.text_input('Add the description to the service', '')
+        execute = st.text_input('Add code in python', '')
+        code = 'import sys'
+        code += '\ndef Description():'
+        code += '\n\treturn ' + description
+        code += '\ndef Execute():'
+        code += '\n\treturn eval('+ execute +')'
+        code += "\nif __name__ == '__main__':"
+        code += '\n\targ = (sys.argv[1])'
+        code += '\n\tif arg == "2":'
+        code += '\n\t\tExecute()'
+        code += '\n\telif arg == "1":'
+        code += '\n\t\tDescription()'
+        code += '\n\telse:'
+        code += '\n\t\tpass'
+        with open("./Agent/" + self.servicio + ".py","w") as file:
+            file.write(code)
 
     def RequestAgent(self, address):
-        print("Pide el agente")
+        #print("Pide el agente")
         pSocket3 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         pSocket3.connect(address)
         datos = ["RequestAgent", self.address]
         pSocket3.sendall(pickle.dumps(datos))
-
 
     def joinNode(self, connection, address, datos):
         '''
@@ -317,7 +315,7 @@ class Node:
             n = pickle.loads(peerSocket.recv(BUFFER))
             peerSocket.close()
         except socket.error:
-            print('Connection denied while getting Successor')
+            st.error('Connection denied while getting Successor')
         return n
 
     def updateFingerTable(self):
@@ -344,9 +342,6 @@ class Node:
  
     def getPredecessor(self,id):
         address = [self.address, self.id] 
-        #print("my id {0} mi succesor{1}",self.id,self.succID)
-        #print("ID buscado{0}",id)
-        #print("{0},{1}".format(self.id, self.succID))
         if (self.id < id and id < self.succID and self.id < self.succID) or (self.succID < self.id and (id < self.succID or id > self.id)) or self.succID == self.id or self.succID == id:       
             return address
         recvaddress = self.closest_preceding_finger(id)
@@ -367,34 +362,6 @@ class Node:
 
         return [self.address,self.id]
 
-
-    ##    # Caso 0: si soy yo
-    ##    if self.id == keyID:
-    ##        datos = [0, self.address]
-    ##    # Caso 1: si nada mas existe 1 nodo
-    ##    elif self.succID == self.id:
-    ##        datos = [0, self.address]
-    ##    # Caso 2: si mi id es mayor que el keyID, preguntar al antecesor
-    ##    elif self.id > keyID:
-    ##        if self.predID < keyID:
-    ##            datos = [0, self.address]
-    ##        elif self.predID > self.id:
-    ##            datos = [0, self.address]
-    ##        else:
-    ##            datos = [1, self.pred]
-    ##    # Case 3: si mi id es menor que el keyID, usar la fingertable para buscar al mas cercano
-    ##    else:
-    ##        if self.id > self.succID:
-    ##            datos = [0, self.succ]
-    ##        else:
-    ##            value = ()
-    ##            for key, value in self.fingerTable.items():
-    ##                if key >= keyID:
-    ##                    break
-    ##            value = self.succ
-    ##            datos = [1, value]
-    ##    connection.sendall(pickle.dumps(datos))
-
     def mySucc(self):
         return [self.succ,self.succID]
 
@@ -414,22 +381,26 @@ class Node:
     ###################################CLIENTE###########################################
     #####################################################################################
     def MenuServicio(self):
-        print("Connect to the network\n")    
-        ip = input('Enter IP to connect: ')
-        port = int(input('Enter port: '))
+        st.write("Connect to the network\n")    
+        ip = st.text_input('Enter IP to connect: ', '')
+        port = int(st.text_input('Enter port: ', ''))
         self.server = (ip,port)
         self.succList = []
 
     def MenuCliente(self):
         while 1:
-            print("0- Buscar otro Servicio\n1- Brindar algun servicio")
-            choice = input()
-            if choice == "0":
-                self.servicio = input("Que servicio desea buscar: ")
+            choice = -1
+            option = st.selectbox('', ('Que desea hacer', 'Brindar Servicio', 'Buscar Servicio'))
+            if option == 'Brindar Servicio':
+                choice = 1
+            elif option == 'Buscar Servicio':
+                choice = 0
+            if choice == 0:
+                self.servicio = st.text_input("What service do you want to search for?: ")
                 self.ConnectServer()
                 self.GetServicio()
-            else:
-                self.servicio = input("Que servicio desea brindar:")
+            elif choice == 1:
+                self.servicio = st.text_input("What service do you want to provide?:")
                 self.id = self.predID = self.succID = getHashId((self.ip,self.port),self.servicio)
                 self.succList = [(self.address, self.id)]
                 self.agent = Agent(self.address, self.id, self.servicio)
@@ -450,35 +421,34 @@ class Node:
             peerSocket.sendall(pickle.dumps(["Buscar",x]))
             recvAddr = pickle.loads(peerSocket.recv(BUFFER))
             self.server = recvAddr[0]
-            print("Recibi server", self.server)
+            st.write("Received server ", self.server)
             peerSocket.close()
             datos = ["RequestSuccList"]
             peerSocket1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peerSocket1.connect(self.server)
             peerSocket1.sendall(pickle.dumps(datos))
             self.succList = pickle.loads(peerSocket1.recv(BUFFER))
-            print("recibi lista de server",self.succList)
-
+            #print("recibi lista de server",self.succList)
             peerSocket1.close()
         except:
             if len(self.succList)>0:
                 self.server = self.succList.pop(0)[0]
                 self.ConnectServer()
             else:
-                #print("No se encontro el servidor")
+                st.write("Server not found")
                 pass
 
     def GetServicio(self):
         serv = getHash(self.servicio)
-        print("get servicio al server",self.server)
+        print("get service to server ",self.server)
         try:
             predAddress = self.requestPred(self.server)
         except:
             exit()
         recAddress = getHashId(self.server,self.servicio)
-        print( "predddecesor addres",predAddress)
-        print("recvadress", recAddress)
-        print("ServicioID", serv)
+        #print( "predddecesor addres",predAddress)
+        #print("recvadress", recAddress)
+        print("ServiceID ", serv)
         self.FindBestAgent(serv, [self.server,recAddress], predAddress, 0, self.servicio)
 
 #########################################################################################
@@ -487,28 +457,33 @@ class Node:
         searchId = getHashId(self.address, servicio)
         recAddress=self.getSuccessor(searchId)
         serv = getHash(servicio)
-        print(recAddress)
+        #print(recAddress)
         predAddress = self.requestPred(recAddress[0])
         self.FindBestAgent(serv, recAddress, predAddress, 1, servicio)
 
 ##########################################################################################
 
     def FindBestAgent(self, servicioID, succ, pred, type, servicio):
-        print("servicio:{0}, succ{1}, pred{2}".format(servicioID,succ,pred))
+        #print("servicio:{0}, succ{1}, pred{2}".format(servicioID,succ,pred))
         servToExec = pred
         _serv = succ if int(succ[1]/1000) == servicioID else pred 
         free = False
         _queue = sys.maxsize
         timer = sys.maxsize
         if (int(pred[1]/1000) != servicioID and int(succ[1]/1000) != servicioID):
-            print(f"No se ha encontrado ese servicio en el servidor")
+            st.write(f"That service was not found on the server")
         else:
             try:
-                print(f"Se ha encontrado ese servicio\n1-Descripcion\n2-Ejecutar")
-                inpt = input()
+                st.write("That service was found")
+                inpt = 0
+                option = st.selectbox('', ('Que desea hacer', 'Description', 'Execute'))
+                if option == 'Description':
+                    inpt = 1
+                elif option == 'Execute':
+                    inpt = 2
                 datos = ["RequestAgentState"]
                 while(True):
-                    print("*********{}*********".format(_serv))
+                    #print("*********{}*********".format(_serv))
                     peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     t0 = time.time()
                     peerSocket.connect(_serv[0])
@@ -526,24 +501,31 @@ class Node:
                         free = True
                         _queue = 0
                     _serv = [state[1],state[2]]
-                    print("*********{}*********".format(_serv))
-                    print("############ {} ############".format(int(_serv[1]/1000) != servicioID))
+                    #print("*********{}*********".format(_serv))
+                    #print("############ {} ############".format(int(_serv[1]/1000) != servicioID))
                     if ((int(_serv[1]/1000) != servicioID) or _serv == succ): break
                 if free:
-                    print(servToExec)
+                    st.write(servToExec)
                     res = self.requestExec(servToExec[0],inpt)
-                    print(res)
+                    st.write(res)
                 else:
-                    print(f"Todos los agentes que realizan el servicio se encuentran ocupados, desea:\n1-Entrar en cola\n2-Volver al menu")
-                    if (input()=="1"):
+                    st.write("All agents performing the service are busy")
+                    inputq = 0
+                    option = st.selectbox('', ('What would you like to do', 'Enter queue', 'Back to menu'))
+                    if option == 'Enter queue':
+                        inputq = 1
+                    elif option == 'Back to menu':
+                        inputq = 2
+                    #print(f"Todos los agentes que realizan el servicio se encuentran ocupados, desea:\n1-Entrar en cola\n2-Volver al menu")
+                    if (inputq == 1):
                         res = self.requestExec(servToExec[0],inpt)    
-                        print(res)
+                        st.write(res)
             except:
                 if (type):
                     time.sleep(2)
                     self.BuscarServicio(servicio)
                 else:
-                    print("esperando 1 segundo")
+                    #print("esperando 1 segundo")
                     time.sleep(2)
                     self.ConnectServer()
                     self.GetServicio()
@@ -556,12 +538,6 @@ class Node:
         datos = pickle.loads(peerSocket.recv(BUFFER)) 
         peerSocket.close()
         return(datos)  
-   
-
-
-    
-    
-
 
     def pingSucc(self):
         while True:
@@ -585,19 +561,14 @@ class Node:
                         self.succList.append(succ)
                         if len(self.succList) == 20: break
             except:
-                print('\nNode offline detected \nStabilizing...')
+                st.write('Node offline detected')
+                st.write('Stabilizing...')
                 while(True):
                     try:
                         if not self.succ == self.pred:
                             self.succList.pop(0)
                             self.succ = self.succList[0][0]
                             self.succID = self.succList[0][1]
-                            #print(self.succ)
-                            # # Search for the next succ
-                            # recvAdd = self.getSuccessor(self.succID+1)
-                            # self.succ = recvAdd[0]
-                            # temp = self.succID
-                            # self.succID = recvAdd[1]
                             
                             # Informa al nuevo sucesor para que actualice su predecesor conmigo
                             pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -617,7 +588,7 @@ class Node:
                             self.succID = self.id
                             break
                     except socket.error:
-                            print("error aqui por alguna razon")
+                            st.write("Socket error")
 
 if __name__ == '__main__':
 

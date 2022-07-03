@@ -9,6 +9,7 @@ import socket
 import os
 import time
 import threading
+import streamlit as st
 
 class Agent():
     def __init__(self, address,id,service):
@@ -28,7 +29,7 @@ class Agent():
 
         else:
             self.queue.append([argv, connection])
-            print("Estoy ocupado")
+            st.write("I'm busy")
             return
 
     def startQueueThread(self):
@@ -45,7 +46,7 @@ class Agent():
 
     def SendAgent(self, connection):
         time.sleep(0.2)
-        print("Empezamos a enviar")
+        st.write("We start shipping")
         file_open=0
         try:
             file = open( f"./Agent/{self.service}.py","rb")
@@ -54,11 +55,11 @@ class Agent():
             while fileData:                
                 connection.send(fileData)
                 fileData = file.read(BUFFER)
-            return ("El agente fue enviado")
+            return ("The agent was sent")
         except:
             if file_open:
                 file.close()
-            return ("El agente no se pudo enviar")
+            return ("Agent could not be sent")
 
 
     def RecibirAgente(self,connection):
@@ -79,11 +80,11 @@ class Agent():
                     break
             file.close()
             connection.close()
-            print("All written on file")
+            st.write("All written on file")
         except ConnectionResetError:
-            print('Interrupted data transfer')
-            print('Waiting for the system to stabilize')
-            print('Try again in 10 seconds')
+            st.write('Interrupted data transfer')
+            st.write('Waiting for the system to stabilize')
+            st.write('Try again in 10 seconds')
             os.remove(self.service)
             
     
