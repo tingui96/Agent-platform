@@ -2,7 +2,6 @@ import queue
 import subprocess
 import sys
 
-from sqlalchemy import true
 from tools import *
 import pickle
 import socket
@@ -36,7 +35,7 @@ class Agent():
 
 
     def CheckQueue(self):
-        while(true):
+        while(True):
             if len(self.queue) and self.state:
                 elem = self.queue.pop()
                 self.Exectute(elem[0], elem[1])

@@ -278,6 +278,24 @@ class Node:
             print('Socket error. Recheck IP/Port.')
 
     
+    def CrearAgente(self):
+        description = input('Add the description to the service: ')
+        execute = input('Add code in python: ')
+        code = 'import sys'
+        code += '\ndef Description():'
+        code += '\n\treturn ' + '"'+ description +'"'
+        code += '\ndef Execute():'
+        code += '\n\treturn eval("'+ execute +'")'
+        code += "\nif __name__ == '__main__':"
+        code += '\n\targ = (sys.argv[1])'
+        code += '\n\tif arg == "2":'
+        code += '\n\t\tprint(Execute())'
+        code += '\n\telif arg == "1":'
+        code += '\n\t\tprint(Description())'
+        code += '\n\telse:'
+        code += '\n\t\tpass'
+        with open("./Agent/" + self.servicio + ".py","w") as file:
+            file.write(code)
 
 
     def RequestAgent(self, address):
