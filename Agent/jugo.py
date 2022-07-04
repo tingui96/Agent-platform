@@ -4,7 +4,7 @@ def Description():
     return " Jugo 100% natural "
 
 def Execute():
-    return " Jugo "    
+    return " Jugo de pera"    
 
 
 if __name__ == '__main__':

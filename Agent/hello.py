@@ -18,3 +18,4 @@ if __name__ == '__main__':
 
     a = int(321567/1000)
     print(a)
+    
