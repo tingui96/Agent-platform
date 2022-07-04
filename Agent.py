@@ -27,7 +27,6 @@ class Agent():
 
         else:
             self.queue.append([argv, connection])
-            print("Estoy ocupado")
             return
 
     def startQueueThread(self):
@@ -78,11 +77,11 @@ class Agent():
                     break
             file.close()
             connection.close()
-            print("All written on file")
+            print("Se recibió con éxito")
         except ConnectionResetError:
-            print('Interrupted data transfer')
-            print('Waiting for the system to stabilize')
-            print('Try again in 10 seconds')
+            print('Transferencia interrumpida')
+            print('Esperando porque el sistema se estabilice')
+            print('Intentar de nuevo en 10 segundos')
             os.remove(self.service)
             
     
