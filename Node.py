@@ -156,7 +156,8 @@ class Node:
         elif connectionType == "RequestSuccList":
             connection.sendall(pickle.dumps(self.succList))
         elif connectionType == "ExecAgent":
-            self.agent.Exectute(datos[1],connection)
+            res = self.agent.Exectute(datos[1],connection)
+            print(res)
         elif connectionType == "RequestAgentState":
             state = self.agent.state
             queue = len(self.agent.queue)
@@ -504,7 +505,8 @@ class Node:
                 else:
                     print(f"Todos los agentes que realizan el servicio se encuentran ocupados, desea:\n1-Entrar en cola\n2-Volver al menu")
                     if (input()=="1"):
-                        res = self.requestExec(servToExec[0],inpt)    
+                        res = self.requestExec(servToExec[0],inpt)  
+                        print(res)  
             except:
                 if (type):
                     time.sleep(2)

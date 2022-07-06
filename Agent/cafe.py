@@ -12,8 +12,8 @@ def Execute():
 if __name__ == '__main__':
     arg = (sys.argv[1])
     if arg == "2":
-        Execute() 
+        print(Execute()) 
     elif arg == "1":
-        Description()
+        print(Description())
     else:
         pass
