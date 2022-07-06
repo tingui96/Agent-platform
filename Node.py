@@ -502,6 +502,7 @@ class Node:
                     if ((int(_serv[1]/1000) != servicioID) or _serv == succ): break
                 if free:
                     res = self.requestExec(servToExec[0],inpt)
+                    print(res)
                 else:
                     print(f"Todos los agentes que realizan el servicio se encuentran ocupados, desea:\n1-Entrar en cola\n2-Volver al menu")
                     if (input()=="1"):
